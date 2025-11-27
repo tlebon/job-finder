@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 
 interface Profile {
@@ -45,6 +45,9 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [newRule, setNewRule] = useState({ type: 'include_title', pattern: '', weight: 10 });
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Fetch profile
@@ -78,6 +81,60 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleResumeUpload = async (file: File) => {
+    setUploading(true);
+    setUploadError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('resume', file);
+
+      const res = await fetch('/api/profile/parse-resume', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to parse resume');
+      }
+
+      const { profile: parsedProfile } = await res.json();
+
+      // Merge with existing profile (keep existing values if parsed is empty)
+      setProfile(prev => ({
+        name: parsedProfile.name || prev.name,
+        title: parsedProfile.title || prev.title,
+        location: parsedProfile.location || prev.location,
+        email: parsedProfile.email || prev.email,
+        phone: parsedProfile.phone || prev.phone,
+        linkedin: parsedProfile.linkedin || prev.linkedin,
+        github: parsedProfile.github || prev.github,
+        website: parsedProfile.website || prev.website,
+        summary: parsedProfile.summary || prev.summary,
+        experience: parsedProfile.experience || prev.experience,
+        skills: parsedProfile.skills || prev.skills,
+        preferences: parsedProfile.preferences || prev.preferences,
+      }));
+    } catch (err) {
+      console.error('Failed to upload resume:', err);
+      setUploadError(err instanceof Error ? err.message : 'Failed to parse resume');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleResumeUpload(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleResumeUpload(file);
   };
 
   const handleAddRule = async () => {
@@ -179,13 +236,55 @@ export default function SettingsPage() {
 
         {/* Profile Tab */}
         {activeTab === 'profile' && (
-          <div className="bg-white rounded-xl border border-[var(--border)] p-6">
-            <h2 className="text-lg font-serif font-medium text-[var(--ink)] mb-4">Your Profile</h2>
-            <p className="text-sm text-[var(--ink-muted)] mb-6">
-              This information is used to personalize your cover letters.
-            </p>
+          <div className="space-y-6">
+            {/* Resume Upload */}
+            <div
+              className={`bg-white rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
+                uploading ? 'border-[var(--accent)] bg-[var(--cream-dark)]/30' : 'border-[var(--border)] hover:border-[var(--accent)]'
+              }`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleDrop}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.txt"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              {uploading ? (
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-sm text-[var(--ink-muted)]">Parsing resume with AI...</p>
+                </div>
+              ) : (
+                <>
+                  <svg className="w-10 h-10 mx-auto text-[var(--ink-muted)] mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-sm text-[var(--ink)] font-medium mb-1">Upload your resume</p>
+                  <p className="text-xs text-[var(--ink-muted)] mb-3">Drag & drop a PDF or TXT file, or click to browse</p>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 text-sm font-medium text-[var(--accent)] border border-[var(--accent)] rounded-lg hover:bg-[var(--accent)] hover:text-white transition-colors"
+                  >
+                    Choose File
+                  </button>
+                </>
+              )}
+              {uploadError && (
+                <p className="text-sm text-red-600 mt-3">{uploadError}</p>
+              )}
+            </div>
 
-            <div className="space-y-4">
+            {/* Profile Form */}
+            <div className="bg-white rounded-xl border border-[var(--border)] p-6">
+              <h2 className="text-lg font-serif font-medium text-[var(--ink)] mb-4">Your Profile</h2>
+              <p className="text-sm text-[var(--ink-muted)] mb-6">
+                This information is used to personalize your cover letters.
+              </p>
+
+              <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-[var(--ink)] mb-1">Name</label>
@@ -317,6 +416,7 @@ export default function SettingsPage() {
                 >
                   {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Profile'}
                 </button>
+              </div>
               </div>
             </div>
           </div>
