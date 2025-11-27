@@ -44,7 +44,7 @@ export default function SettingsPage() {
   const [blocklist, setBlocklist] = useState<BlocklistEntry[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [newRule, setNewRule] = useState({ type: 'include_title', pattern: '', weight: 10 });
+  const [newRule, setNewRule] = useState({ type: 'include_title', pattern: '', priority: 'preferred' });
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -137,6 +137,23 @@ export default function SettingsPage() {
     if (file) handleResumeUpload(file);
   };
 
+  // Convert priority label to weight value
+  const priorityToWeight = (priority: string): number => {
+    switch (priority) {
+      case 'required': return 100;
+      case 'preferred': return 20;
+      case 'nice_to_have': return 5;
+      default: return 10;
+    }
+  };
+
+  // Convert weight back to priority label for display
+  const weightToPriority = (weight: number): string => {
+    if (weight >= 50) return 'required';
+    if (weight >= 10) return 'preferred';
+    return 'nice_to_have';
+  };
+
   const handleAddRule = async () => {
     if (!newRule.pattern.trim()) return;
 
@@ -144,11 +161,15 @@ export default function SettingsPage() {
       const res = await fetch('/api/filters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newRule),
+        body: JSON.stringify({
+          type: newRule.type,
+          pattern: newRule.pattern,
+          weight: priorityToWeight(newRule.priority),
+        }),
       });
       const data = await res.json();
       setRules(data.rules || []);
-      setNewRule({ type: 'include_title', pattern: '', weight: 10 });
+      setNewRule({ type: 'include_title', pattern: '', priority: 'preferred' });
     } catch (err) {
       console.error('Failed to add rule:', err);
     }
@@ -189,12 +210,18 @@ export default function SettingsPage() {
   };
 
   const ruleTypes = [
-    { value: 'include_title', label: 'Include Title', description: 'Job titles to match' },
-    { value: 'exclude_title', label: 'Exclude Title', description: 'Job titles to reject' },
-    { value: 'include_tech', label: 'Tech Stack', description: 'Technologies to look for' },
-    { value: 'include_location', label: 'Location', description: 'Locations to include' },
-    { value: 'include_company_type', label: 'Company Type', description: 'Company keywords (e.g., blockchain)' },
-    { value: 'boost', label: 'Boost Keywords', description: 'Keywords that increase score' },
+    { value: 'include_title', label: 'Match Title', description: 'Job titles to look for', icon: '✓' },
+    { value: 'exclude_title', label: 'Exclude Title', description: 'Job titles to filter out', icon: '✗' },
+    { value: 'include_tech', label: 'Tech Stack', description: 'Technologies to match', icon: '⚡' },
+    { value: 'include_location', label: 'Location', description: 'Locations to include', icon: '📍' },
+    { value: 'include_company_type', label: 'Company Type', description: 'Industry keywords', icon: '🏢' },
+    { value: 'boost', label: 'Boost', description: 'Keywords that increase score', icon: '↑' },
+  ];
+
+  const priorityOptions = [
+    { value: 'required', label: 'Required', description: 'Must match', color: 'text-red-600' },
+    { value: 'preferred', label: 'Preferred', description: 'Nice to have', color: 'text-amber-600' },
+    { value: 'nice_to_have', label: 'Optional', description: 'Small boost', color: 'text-gray-500' },
   ];
 
   return (
@@ -432,8 +459,8 @@ export default function SettingsPage() {
                 Filter rules determine which jobs pass through the scraper. Patterns are regex-enabled.
               </p>
 
-              <div className="flex gap-4 items-end">
-                <div className="flex-1">
+              <div className="flex gap-4 items-end flex-wrap">
+                <div className="w-40">
                   <label className="block text-sm font-medium text-[var(--ink)] mb-1">Type</label>
                   <select
                     value={newRule.type}
@@ -441,11 +468,11 @@ export default function SettingsPage() {
                     className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   >
                     {ruleTypes.map(t => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
+                      <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
                     ))}
                   </select>
                 </div>
-                <div className="flex-[2]">
+                <div className="flex-1 min-w-[200px]">
                   <label className="block text-sm font-medium text-[var(--ink)] mb-1">Pattern</label>
                   <input
                     type="text"
@@ -455,14 +482,17 @@ export default function SettingsPage() {
                     placeholder="e.g., frontend|react|vue"
                   />
                 </div>
-                <div className="w-24">
-                  <label className="block text-sm font-medium text-[var(--ink)] mb-1">Weight</label>
-                  <input
-                    type="number"
-                    value={newRule.weight}
-                    onChange={e => setNewRule({ ...newRule, weight: parseInt(e.target.value) || 0 })}
+                <div className="w-32">
+                  <label className="block text-sm font-medium text-[var(--ink)] mb-1">Priority</label>
+                  <select
+                    value={newRule.priority}
+                    onChange={e => setNewRule({ ...newRule, priority: e.target.value })}
                     className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                  />
+                  >
+                    {priorityOptions.map(p => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
+                  </select>
                 </div>
                 <button
                   onClick={handleAddRule}
@@ -471,6 +501,9 @@ export default function SettingsPage() {
                   Add
                 </button>
               </div>
+              <p className="text-xs text-[var(--ink-muted)] mt-3">
+                Tip: Use | for OR patterns (e.g., "react|vue|angular")
+              </p>
             </div>
 
             {/* Existing rules */}
@@ -484,50 +517,63 @@ export default function SettingsPage() {
                   No filter rules yet. Add some above or they will be loaded from the default config.
                 </p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-4">
                   {ruleTypes.map(ruleType => {
                     const typeRules = rules.filter(r => r.type === ruleType.value);
                     if (typeRules.length === 0) return null;
 
                     return (
-                      <div key={ruleType.value} className="mb-4">
-                        <h3 className="text-sm font-medium text-[var(--ink-muted)] mb-2">
+                      <div key={ruleType.value}>
+                        <h3 className="text-sm font-medium text-[var(--ink)] mb-2 flex items-center gap-2">
+                          <span>{ruleType.icon}</span>
                           {ruleType.label}
+                          <span className="text-xs text-[var(--ink-muted)] font-normal">({typeRules.length})</span>
                         </h3>
                         <div className="space-y-1">
-                          {typeRules.map(rule => (
-                            <div
-                              key={rule.id}
-                              className={`flex items-center gap-3 p-2 rounded-lg ${
-                                rule.enabled ? 'bg-[var(--cream-dark)]/50' : 'bg-gray-100 opacity-60'
-                              }`}
-                            >
-                              <button
-                                onClick={() => handleToggleRule(rule.id, !rule.enabled)}
-                                className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer ${
-                                  rule.enabled
-                                    ? 'bg-[var(--accent)] border-[var(--accent)]'
-                                    : 'border-gray-300'
+                          {typeRules.map(rule => {
+                            const priority = weightToPriority(rule.weight);
+                            const priorityConfig = priorityOptions.find(p => p.value === priority);
+
+                            return (
+                              <div
+                                key={rule.id}
+                                className={`flex items-center gap-3 p-2 rounded-lg ${
+                                  rule.enabled ? 'bg-[var(--cream-dark)]/50' : 'bg-gray-100 opacity-60'
                                 }`}
                               >
-                                {rule.enabled && (
-                                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                <button
+                                  onClick={() => handleToggleRule(rule.id, !rule.enabled)}
+                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer flex-shrink-0 ${
+                                    rule.enabled
+                                      ? 'bg-[var(--accent)] border-[var(--accent)]'
+                                      : 'border-gray-300'
+                                  }`}
+                                >
+                                  {rule.enabled && (
+                                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </button>
+                                <code className="flex-1 text-sm font-mono truncate">{rule.pattern}</code>
+                                <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                                  priority === 'required' ? 'bg-red-100 text-red-700' :
+                                  priority === 'preferred' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {priorityConfig?.label || 'Unknown'}
+                                </span>
+                                <button
+                                  onClick={() => handleDeleteRule(rule.id)}
+                                  className="text-red-500 hover:text-red-700 cursor-pointer flex-shrink-0"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                   </svg>
-                                )}
-                              </button>
-                              <code className="flex-1 text-sm font-mono">{rule.pattern}</code>
-                              <span className="text-xs text-[var(--ink-muted)]">+{rule.weight}</span>
-                              <button
-                                onClick={() => handleDeleteRule(rule.id)}
-                                className="text-red-500 hover:text-red-700 cursor-pointer"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            </div>
-                          ))}
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
