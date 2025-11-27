@@ -1,0 +1,57 @@
+Timothy LeBon
+Frontend Web Developer
+Berlin, Germany
+
+SUMMARY
+Frontend engineer and Engineering Manager with 6 years of experience. React/TypeScript expert with blockchain and encrypted messaging experience.
+
+WORK EXPERIENCE
+
+Engineering Manager | Wire™ | 06/2024 - 12/2024 | Berlin, DE
+End-to-End Encrypted Collaboration App
+- Guided the web team's personal development (6 engineers)
+- Drove cross-functional initiatives across engineering, product, and design
+- Led development of calling UI overhaul shipped to users
+- Established TypeScript coding standards
+- Oversaw infrastructure migrations
+
+Senior Web Developer | Wire™ | 01/2022 - 06/2024 | Berlin, DE
+End-to-End Encrypted Collaboration Platform
+- React, TypeScript, Electron, AWS
+- Project Lead for Wire Teams Admin Platform
+- Built Account Entropy feature for new accounts
+- Implemented Blurred Background for video calls
+- Led various cross-team technical initiatives
+
+Fullstack Developer | tz-connect gmbH | 06/2021 - 12/2021 | Berlin, DE
+The Berlin hub for the Tezos ecosystem
+- Built fullstack DApps integrating with Tezos APIs
+- Architected and shipped Tezos NFT platform with Postgres, Nest.js, Prisma, React/TypeScript
+- Worked with smart contracts, wallet integration (Temple/MetaMask), and Web3 technologies
+- Handled complex async blockchain operations: pending transactions, confirmations, error states
+
+Intermediate Software Engineer | diconium digital solutions GmbH | 03/2019 - 06/2021 | Berlin, DE
+Agency for digital transformation
+- Worked in Agile framework using React, TypeScript, GraphQL, Node
+
+Web Development Teachers Assistant | Ironhack Berlin | 11/2018 - 12/2018 | Berlin, DE
+- Helped students with React for their final projects
+- Mentored young developers
+
+SKILLS
+React, TypeScript, Node.js, Electron, GraphQL, Nest.js, Prisma, Web3/Blockchain, AWS, Git
+
+EDUCATION
+Full Stack Web Development Bootcamp | Ironhack, Berlin | 2018
+Bachelor of Arts in Chemistry and Art | UC Santa Cruz | 2014
+
+CERTIFICATES
+Mindful Meditation Teacher - 2-year certification program (https://mmtcp.soundstrue.com)
+
+ACHIEVEMENTS
+- Walked 1000+ km from Berlin to France following St. James Way (2025)
+- Berlin Half Marathon 2023 & 2024 (1:57:51)
+- Won Comedy Cafe Berlin Cage Match with Improv Group Shredder (2025)
+
+INTERESTS
+Meditation, Improv Comedy, Writing, Rock Climbing, Travel, Hiking, Running
