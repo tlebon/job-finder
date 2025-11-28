@@ -333,6 +333,38 @@ function CandidateCard({
   onDismiss: () => void;
 }) {
   const [showDismissConfirm, setShowDismissConfirm] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [translatedDescription, setTranslatedDescription] = useState<string | null>(null);
+
+  const handleTranslate = async () => {
+    setTranslating(true);
+    try {
+      const res = await fetch(`/api/jobs/${job.id}/translate`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setTranslatedDescription(data.translatedDescription);
+      }
+    } catch (err) {
+      console.error('Failed to translate:', err);
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  // Simple heuristic to detect if text is likely non-English
+  const isLikelyNonEnglish = (text: string): boolean => {
+    if (!text) return false;
+    const plainText = text.replace(/<[^>]*>/g, '').toLowerCase();
+    // Common English words - if text has very few of these, probably not English
+    const englishMarkers = /\b(the|and|or|is|are|we|you|our|for|with|this|that|have|will|from|about|your)\b/g;
+    const matches = plainText.match(englishMarkers) || [];
+    // If less than 2% of words are common English words, likely non-English
+    const wordCount = plainText.split(/\s+/).length;
+    return wordCount > 20 && (matches.length / wordCount) < 0.02;
+  };
+
+  const showTranslateButton = isLikelyNonEnglish(job.description);
+  const displayDescription = translatedDescription || job.description;
 
   return (
     <div className={`bg-white rounded-xl border transition-all ${
@@ -404,7 +436,7 @@ function CandidateCard({
             {/* Description preview (collapsed) */}
             {!expanded && (
               <p className="text-sm text-[var(--ink-muted)] mt-3 line-clamp-2">
-                {job.description?.replace(/<[^>]*>/g, '').substring(0, 300)}
+                {displayDescription?.replace(/<[^>]*>/g, '').substring(0, 300)}
               </p>
             )}
 
@@ -481,9 +513,51 @@ function CandidateCard({
       {/* Expanded description */}
       {expanded && (
         <div className="border-t border-[var(--border)] px-5 py-4 bg-[var(--cream-dark)]/30">
+          {/* Translate button - only show for non-English content */}
+          {(showTranslateButton || translatedDescription) && (
+            <div className="flex items-center gap-3 mb-3">
+              {translatedDescription ? (
+                <span className="text-xs text-emerald-600 flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Translated to English
+                </span>
+              ) : (
+                <button
+                  onClick={handleTranslate}
+                  disabled={translating}
+                  className="text-xs text-[var(--ink-muted)] hover:text-[var(--accent)] flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                >
+                  {translating ? (
+                    <>
+                      <span className="w-3 h-3 border border-[var(--accent)] border-t-transparent rounded-full animate-spin"></span>
+                      Translating...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                      </svg>
+                      Translate to English
+                    </>
+                  )}
+                </button>
+              )}
+              {translatedDescription && (
+                <button
+                  onClick={() => setTranslatedDescription(null)}
+                  className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] cursor-pointer"
+                >
+                  Show original
+                </button>
+              )}
+            </div>
+          )}
+
           <div
             className="job-description text-sm max-h-[400px] overflow-auto"
-            dangerouslySetInnerHTML={{ __html: job.description }}
+            dangerouslySetInnerHTML={{ __html: displayDescription }}
           />
           {job.description && (job.description.length < 500 || job.description.trim().endsWith('…') || job.description.trim().endsWith('...')) && (
             <div className="mt-4 pt-3 border-t border-[var(--border)]">
