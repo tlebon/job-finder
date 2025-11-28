@@ -1,7 +1,8 @@
 import { fetchAllJobs } from './sources/index.js';
 import { filterJobs } from './filters/jobFilter.js';
-import { getExistingJobUrls, getExistingJobSignatures, appendJobs, rawJobToJob } from './storage/db.js';
+import { getExistingJobUrls, getExistingJobSignatures, appendJobs, rawJobToJob, updateJobWithAIReview, updateJobStatus, getProfile } from './storage/db.js';
 import { notifyNewJobs, notifyError } from './notifications/telegram.js';
+import { reviewCandidates } from './ai/reviewCandidates.js';
 import { env } from './config.js';
 import type { Job, RawJob } from './types.js';
 
@@ -105,6 +106,32 @@ async function main() {
       appendJobs(pendingJobs);
     } else {
       console.log('\n[DRY RUN] Would save these candidates as PENDING');
+    }
+
+    // Step 5.5: AI Review of new candidates
+    console.log('\n🤖 Running AI review of candidates...');
+    const profile = getProfile();
+    if (profile && !env.DRY_RUN) {
+      const reviewResults = await reviewCandidates(pendingJobs, profile);
+
+      // Apply results
+      let autoDismissed = 0;
+      for (const result of reviewResults) {
+        if (result.suggestion === 'AUTO_DISMISS') {
+          updateJobStatus(result.jobId, 'NOT_FIT');
+          autoDismissed++;
+        }
+        updateJobWithAIReview(result);
+      }
+
+      if (autoDismissed > 0) {
+        console.log(`  [AI] Auto-dismissed ${autoDismissed} jobs as NOT_FIT`);
+      }
+    } else if (!profile) {
+      console.log('  [AI] No profile configured, skipping AI review');
+      console.log('  [AI] Set up your profile at http://localhost:3000/settings');
+    } else {
+      console.log('  [DRY RUN] Would run AI review of candidates');
     }
 
     // Step 6: Send notification with link to review candidates

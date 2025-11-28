@@ -35,6 +35,15 @@ try {
   // Column already exists
 }
 
+// Add AI review columns (migration)
+try {
+  db.exec(`ALTER TABLE jobs ADD COLUMN ai_reviewed INTEGER DEFAULT 0`);
+  db.exec(`ALTER TABLE jobs ADD COLUMN ai_suggestion TEXT`);
+  db.exec(`ALTER TABLE jobs ADD COLUMN ai_reasoning TEXT`);
+} catch {
+  // Columns already exist
+}
+
 // Create index for common queries
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
@@ -97,6 +106,8 @@ db.exec(`
   )
 `);
 
+export type AISuggestion = 'STRONG_FIT' | 'GOOD_FIT' | 'MAYBE' | 'AUTO_DISMISS';
+
 export interface Job {
   id: string;
   dateFound: string;
@@ -111,6 +122,9 @@ export interface Job {
   score: number;
   notes?: string;
   appliedDate?: string;
+  aiReviewed?: boolean;
+  aiSuggestion?: AISuggestion;
+  aiReasoning?: string;
 }
 
 interface JobRow {
@@ -127,6 +141,9 @@ interface JobRow {
   score: number | null;
   notes: string | null;
   applied_date: string | null;
+  ai_reviewed: number | null;
+  ai_suggestion: string | null;
+  ai_reasoning: string | null;
 }
 
 function rowToJob(row: JobRow): Job {
@@ -144,6 +161,9 @@ function rowToJob(row: JobRow): Job {
     score: row.score || 0,
     notes: row.notes || undefined,
     appliedDate: row.applied_date || undefined,
+    aiReviewed: row.ai_reviewed === 1,
+    aiSuggestion: row.ai_suggestion as AISuggestion | undefined,
+    aiReasoning: row.ai_reasoning || undefined,
   };
 }
 

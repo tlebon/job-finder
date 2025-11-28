@@ -40,6 +40,15 @@ try {
   // Column already exists
 }
 
+// Add AI review columns (migration)
+try {
+  db.exec(`ALTER TABLE jobs ADD COLUMN ai_reviewed INTEGER DEFAULT 0`);
+  db.exec(`ALTER TABLE jobs ADD COLUMN ai_suggestion TEXT`);
+  db.exec(`ALTER TABLE jobs ADD COLUMN ai_reasoning TEXT`);
+} catch {
+  // Columns already exist
+}
+
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
   CREATE INDEX IF NOT EXISTS idx_jobs_date_found ON jobs(date_found);
@@ -183,6 +192,102 @@ export function rawJobToJob(rawJob: RawJob, coverLetter?: string, status: Job['s
     status,
     score: (rawJob as RawJob & { score?: number }).score,
   };
+}
+
+// AI Review functions
+export type AISuggestion = 'STRONG_FIT' | 'GOOD_FIT' | 'MAYBE' | 'AUTO_DISMISS';
+
+export interface AIReviewResult {
+  jobId: string;
+  suggestion: AISuggestion;
+  reasoning: string;
+  scoreAdjustment: number;
+}
+
+export function updateJobWithAIReview(result: AIReviewResult): void {
+  db.prepare(`
+    UPDATE jobs
+    SET ai_reviewed = 1,
+        ai_suggestion = ?,
+        ai_reasoning = ?,
+        score = score + ?
+    WHERE id = ?
+  `).run(result.suggestion, result.reasoning, result.scoreAdjustment, result.jobId);
+}
+
+export function updateJobStatus(jobId: string, status: string): void {
+  db.prepare('UPDATE jobs SET status = ? WHERE id = ?').run(status, jobId);
+}
+
+export function getJobById(jobId: string): Job | null {
+  const row = db.prepare('SELECT * FROM jobs WHERE id = ?').get(jobId) as {
+    id: string;
+    date_found: string;
+    source: string;
+    company: string;
+    title: string;
+    location: string;
+    url: string;
+    description: string | null;
+    cover_letter: string | null;
+    status: string;
+    score: number;
+  } | undefined;
+
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    dateFound: row.date_found,
+    source: row.source as Job['source'],
+    company: row.company,
+    title: row.title,
+    location: row.location,
+    url: row.url,
+    description: row.description || '',
+    coverLetter: row.cover_letter || '',
+    status: row.status as Job['status'],
+    score: row.score,
+  };
+}
+
+// ============ PROFILE (for AI review) ============
+
+export interface Profile {
+  name: string;
+  title: string;
+  location: string;
+  skills: string;
+  experience: string;
+  preferences: string;
+}
+
+export function getProfile(): Profile | null {
+  // Profile table may not exist yet if web app hasn't been run
+  try {
+    const row = db.prepare('SELECT * FROM profile WHERE id = ?').get('default') as {
+      name: string | null;
+      title: string | null;
+      location: string | null;
+      skills: string | null;
+      experience: string | null;
+      preferences: string | null;
+    } | undefined;
+
+    if (!row) return null;
+
+    return {
+      name: row.name || '',
+      title: row.title || '',
+      location: row.location || '',
+      skills: row.skills || '',
+      experience: row.experience || '',
+      preferences: row.preferences || '',
+    };
+  } catch {
+    // Profile table doesn't exist
+    return null;
+  }
 }
 
 export { db };

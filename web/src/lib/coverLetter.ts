@@ -51,7 +51,6 @@ ${profile.preferences ? `LOOKING FOR: ${profile.preferences}\n` : ''}
 function buildStyleGuide(): string {
   const profile = getProfile();
   const name = profile?.name || 'Timothy LeBon';
-  const firstName = name.split(' ')[0];
 
   return `
 WRITING STYLE:
@@ -69,11 +68,39 @@ STRUCTURE:
 4. Closing: Express interest in discussing further
 
 FORMAT:
-- Use clear section headers to organize where appropriate
+- Do NOT use any markdown formatting (no **bold**, no headers with #, no _italics_)
+- Section headers should be plain text on their own line (e.g., "Technical Background" not "**Technical Background**")
 - Use bullet points (•) for technical lists - makes it scannable
 - Keep paragraphs focused - one idea per paragraph
+- Output plain text only - this will be exported to PDF/DOCX
 
 LENGTH: 400-500 words - substantial but focused
+
+ABSOLUTELY AVOID THESE AI WRITING PATTERNS:
+- "I am excited to..." / "I was thrilled to..." / "I am eager to..."
+- "I am confident that..." / "I firmly believe..."
+- "leverage" as a verb
+- "synergy" / "synergistic" / "holistic"
+- "passionate about" (overused to meaninglessness)
+- "unique opportunity" / "exciting opportunity"
+- "hit the ground running"
+- "proven track record"
+- "dynamic environment" / "fast-paced environment"
+- "I would be a great fit because..."
+- "I am writing to express my interest in..."
+- "seasoned professional" / "results-driven"
+- "think outside the box" / "go above and beyond"
+- "team player" without specific examples
+- Starting multiple sentences with "I"
+- Vague superlatives without evidence
+
+INSTEAD:
+- Write like a real person, not a press release
+- Use specific examples instead of vague claims
+- Vary sentence structure and length
+- Show, don't tell - if you're collaborative, describe a collaboration
+- Be direct about what you did, not what you "helped" with
+- Confidence without desperation - they need good people too
 `;
 }
 
@@ -172,7 +199,7 @@ Write ONLY the cover letter text. Start with "Dear [Company] Hiring Team," and e
   const reviewPrompt = `You are a hiring manager reviewing a cover letter. Be critical but constructive.
 
 JOB: ${job.title} at ${job.company}
-JOB DESCRIPTION EXCERPT: ${job.description.substring(0, 1500)}
+JOB DESCRIPTION: ${job.description.substring(0, 4000)}
 
 COVER LETTER DRAFT:
 ${draft}
@@ -200,7 +227,7 @@ Provide 3-5 specific, actionable improvements. Be direct and concrete. Format as
   const rewritePrompt = `You are rewriting a cover letter based on reviewer feedback.
 
 JOB: ${job.title} at ${job.company} (${job.location})
-JOB DESCRIPTION: ${job.description.substring(0, 2000)}
+JOB DESCRIPTION: ${job.description.substring(0, 4000)}
 
 ORIGINAL DRAFT:
 ${draft}
@@ -215,12 +242,17 @@ ${styleGuide}
 
 ${roleSpecificGuidance}
 
+CRITICAL: You MUST address EACH piece of feedback listed above. Go through them one by one:
+- For each suggestion, make the specific change requested
+- If feedback says to add something, add it
+- If feedback says to remove something, remove it
+- If feedback says to rephrase something, rephrase it
+
 INSTRUCTIONS:
-1. Rewrite the cover letter incorporating the reviewer's feedback
+1. Address every single feedback point - do not skip any
 2. Keep what's already working well
-3. Fix the specific issues mentioned
-4. Maintain a professional but warm, confident but not arrogant tone
-5. Keep it 400-500 words
+3. Maintain a professional but warm, confident but not arrogant tone
+4. Keep it 400-500 words
 
 OUTPUT:
 Write ONLY the final cover letter. Start with "Dear [Company] Hiring Team," and end with signature.`;

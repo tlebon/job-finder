@@ -7,6 +7,8 @@ import { jsPDF } from 'jspdf';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 
+type AISuggestion = 'STRONG_FIT' | 'GOOD_FIT' | 'MAYBE' | 'AUTO_DISMISS';
+
 interface Job {
   id: string;
   dateFound: string;
@@ -18,6 +20,10 @@ interface Job {
   description: string;
   coverLetter: string;
   status: string;
+  score?: number;
+  aiReviewed?: boolean;
+  aiSuggestion?: AISuggestion;
+  aiReasoning?: string;
 }
 
 interface RegenerateResult {
@@ -38,12 +44,20 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
   const [editedLetter, setEditedLetter] = useState('');
   const [regenerateResult, setRegenerateResult] = useState<RegenerateResult | null>(null);
   const [showDraft, setShowDraft] = useState(false);
+  const [showReviewProcess, setShowReviewProcess] = useState(false);
   const [activeTab, setActiveTab] = useState<'description' | 'letter'>('description');
   const [showNotFitModal, setShowNotFitModal] = useState(false);
   const [notFitReason, setNotFitReason] = useState<string>('other');
   const [blockValue, setBlockValue] = useState('');
   const [translating, setTranslating] = useState(false);
   const [translatedDescription, setTranslatedDescription] = useState<string | null>(null);
+
+  // Chat state
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [suggestedEdit, setSuggestedEdit] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/jobs/${id}`)
@@ -64,15 +78,51 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
     setRegenerateResult(null);
 
     try {
-      const res = await fetch(`/api/jobs/${id}/regenerate`, { method: 'POST' });
-      const data = await res.json();
+      // Start background generation
+      await fetch(`/api/jobs/${id}/regenerate`, { method: 'POST' });
 
-      setRegenerateResult(data);
-      setEditedLetter(data.final);
-      setActiveTab('letter');
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/jobs/${id}/regenerate`);
+          const data = await res.json();
+
+          if (data.status === 'done') {
+            clearInterval(pollInterval);
+            setRegenerateResult(data.result);
+            setEditedLetter(data.result.final);
+            setActiveTab('letter');
+            setRegenerating(false);
+
+            // Refresh job data to get updated cover letter
+            const jobRes = await fetch(`/api/jobs/${id}`);
+            const jobData = await jobRes.json();
+            if (jobData.job) {
+              setJob(jobData.job);
+            }
+          } else if (data.status === 'error') {
+            clearInterval(pollInterval);
+            console.error('Generation error:', data.error);
+            setRegenerating(false);
+          }
+          // If still 'generating', keep polling
+        } catch (err) {
+          console.error('Polling error:', err);
+          clearInterval(pollInterval);
+          setRegenerating(false);
+        }
+      }, 1500); // Poll every 1.5 seconds
+
+      // Safety timeout after 2 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (regenerating) {
+          setRegenerating(false);
+        }
+      }, 120000);
+
     } catch (err) {
       console.error(err);
-    } finally {
       setRegenerating(false);
     }
   };
@@ -169,9 +219,62 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
     }
   };
 
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+
+    const userMessage = chatInput.trim();
+    setChatInput('');
+    setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setChatLoading(true);
+    setSuggestedEdit(null);
+
+    try {
+      const res = await fetch(`/api/jobs/${id}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...chatMessages, { role: 'user', content: userMessage }],
+          coverLetter: editedLetter,
+        }),
+      });
+
+      const data = await res.json();
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+
+      if (data.suggestedEdit) {
+        setSuggestedEdit(data.suggestedEdit);
+      }
+    } catch (err) {
+      console.error('Chat failed:', err);
+      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleApplySuggestion = () => {
+    if (suggestedEdit) {
+      setEditedLetter(suggestedEdit);
+      setSuggestedEdit(null);
+      setChatMessages(prev => [...prev, { role: 'assistant', content: '✓ Changes applied to the letter above.' }]);
+    }
+  };
+
+  // Strip markdown formatting for clean PDF/DOCX export
+  const stripMarkdown = (text: string): string => {
+    return text
+      .replace(/\*\*([^*]+)\*\*/g, '$1')  // **bold** -> bold
+      .replace(/\*([^*]+)\*/g, '$1')       // *italic* -> italic
+      .replace(/__([^_]+)__/g, '$1')       // __bold__ -> bold
+      .replace(/_([^_]+)_/g, '$1')         // _italic_ -> italic
+      .replace(/^#{1,6}\s+/gm, '')         // # headers -> plain text
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // [link](url) -> link
+  };
+
   const downloadAsPDF = () => {
     if (!job || !editedLetter) return;
 
+    const cleanLetter = stripMarkdown(editedLetter);
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 20;
@@ -182,7 +285,7 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
     doc.setFont('helvetica', 'normal');
 
     // Split text into lines that fit the page width
-    const lines = doc.splitTextToSize(editedLetter, maxWidth);
+    const lines = doc.splitTextToSize(cleanLetter, maxWidth);
 
     let y = margin;
     const lineHeight = 6;
@@ -203,7 +306,8 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
   const downloadAsDocx = async () => {
     if (!job || !editedLetter) return;
 
-    const paragraphs = editedLetter.split('\n').map(line =>
+    const cleanLetter = stripMarkdown(editedLetter);
+    const paragraphs = cleanLetter.split('\n').map(line =>
       new Paragraph({
         children: [new TextRun({ text: line, size: 24 })],
         spacing: { after: 200 },
@@ -289,7 +393,21 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
         <div className="bg-white rounded-xl p-6 border border-[var(--border)] mb-6 animate-fade-in">
           <div className="flex justify-between items-start gap-6">
             <div className="flex-1">
-              <h1 className="text-2xl font-serif font-medium text-[var(--ink)] mb-2">{job.title}</h1>
+              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                <h1 className="text-2xl font-serif font-medium text-[var(--ink)]">{job.title}</h1>
+                {job.aiReviewed && job.aiSuggestion && (
+                  <AIBadge suggestion={job.aiSuggestion} reasoning={job.aiReasoning} />
+                )}
+                {job.score !== undefined && job.score > 0 && (
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    job.score >= 30 ? 'bg-emerald-100 text-emerald-700' :
+                    job.score >= 20 ? 'bg-blue-100 text-blue-700' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {job.score} pts
+                  </span>
+                )}
+              </div>
               <p className="text-[var(--ink-muted)] flex items-center gap-3">
                 <span className="font-medium text-[var(--ink-light)]">{job.company}</span>
                 <span className="text-[var(--border)]">•</span>
@@ -469,31 +587,6 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
             </div>
 
             <div className="p-6">
-              {/* Show feedback if regenerated */}
-              {regenerateResult && (
-                <div className="mb-4 p-4 bg-amber-50 rounded-lg border border-amber-200 animate-fade-in">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-sm font-medium text-amber-800">AI Reviewer Feedback</h3>
-                    <button
-                      onClick={() => setShowDraft(!showDraft)}
-                      className="text-xs text-amber-600 hover:text-amber-800 hover:underline"
-                    >
-                      {showDraft ? 'Hide Draft' : 'Show Original Draft'}
-                    </button>
-                  </div>
-                  {showDraft && (
-                    <div className="mb-3 p-3 bg-white rounded border border-amber-100 text-xs text-[var(--ink-muted)] max-h-48 overflow-auto">
-                      <pre className="whitespace-pre-wrap font-sans">{regenerateResult.draft}</pre>
-                    </div>
-                  )}
-                  <div className="text-sm text-amber-700 space-y-2">
-                    {regenerateResult.feedback.split('\n').filter(Boolean).map((line, i) => (
-                      <p key={i}>{line}</p>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <textarea
                 value={editedLetter}
                 onChange={e => setEditedLetter(e.target.value)}
@@ -509,6 +602,147 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
                   </span>
                 </div>
               )}
+
+              {/* AI Review Process (subtle disclosure) */}
+              {regenerateResult && (
+                <div className="mt-4 border-t border-[var(--border)] pt-4">
+                  <button
+                    onClick={() => setShowReviewProcess(!showReviewProcess)}
+                    className="flex items-center gap-2 text-xs text-[var(--ink-muted)] hover:text-[var(--ink-light)] transition-colors"
+                  >
+                    <svg className={`w-3 h-3 transition-transform ${showReviewProcess ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    Show AI review process
+                  </button>
+
+                  {showReviewProcess && (
+                    <div className="mt-3 space-y-3 animate-fade-in">
+                      {/* Original Draft */}
+                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <button
+                          onClick={() => setShowDraft(!showDraft)}
+                          className="flex items-center gap-2 text-xs text-gray-600 hover:text-gray-800 transition-colors w-full"
+                        >
+                          <svg className={`w-3 h-3 transition-transform ${showDraft ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                          Original Draft (before review)
+                        </button>
+                        {showDraft && (
+                          <div className="mt-2 p-3 bg-white rounded border border-gray-100 text-xs text-[var(--ink-muted)] max-h-48 overflow-auto">
+                            <pre className="whitespace-pre-wrap font-sans">{regenerateResult.draft}</pre>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Reviewer Suggestions */}
+                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <h4 className="text-xs font-medium text-gray-600 mb-2">Reviewer Suggestions</h4>
+                        <div className="text-xs text-gray-600 space-y-1.5">
+                          {regenerateResult.feedback.split('\n').filter(Boolean).map((line, i) => (
+                            <p key={i}>{line}</p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Chat Interface */}
+              <div className="mt-4 border-t border-[var(--border)] pt-4">
+                <button
+                  onClick={() => setChatOpen(!chatOpen)}
+                  className="flex items-center gap-2 text-sm text-[var(--ink-muted)] hover:text-[var(--accent)] transition-colors"
+                >
+                  <svg className={`w-4 h-4 transition-transform ${chatOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  Chat about this letter
+                  {chatMessages.length > 0 && (
+                    <span className="text-xs bg-[var(--accent)] text-white px-1.5 py-0.5 rounded-full">
+                      {chatMessages.length}
+                    </span>
+                  )}
+                </button>
+
+                {chatOpen && (
+                  <div className="mt-3 border border-[var(--border)] rounded-lg overflow-hidden animate-fade-in">
+                    {/* Chat Messages */}
+                    <div className="max-h-64 overflow-y-auto p-4 space-y-3 bg-[var(--cream-dark)]/30">
+                      {chatMessages.length === 0 && (
+                        <p className="text-sm text-[var(--ink-muted)] italic">
+                          Ask questions or request changes to your cover letter...
+                        </p>
+                      )}
+                      {chatMessages.map((msg, i) => (
+                        <div
+                          key={i}
+                          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
+                              msg.role === 'user'
+                                ? 'bg-[var(--accent)] text-white'
+                                : 'bg-white border border-[var(--border)] text-[var(--ink)]'
+                            }`}
+                          >
+                            <p className="whitespace-pre-wrap">{msg.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {chatLoading && (
+                        <div className="flex justify-start">
+                          <div className="bg-white border border-[var(--border)] px-3 py-2 rounded-lg">
+                            <div className="flex gap-1">
+                              <span className="w-2 h-2 bg-[var(--ink-muted)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                              <span className="w-2 h-2 bg-[var(--ink-muted)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                              <span className="w-2 h-2 bg-[var(--ink-muted)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Suggested Edit Banner */}
+                    {suggestedEdit && (
+                      <div className="px-4 py-2 bg-emerald-50 border-t border-emerald-200 flex items-center justify-between gap-3">
+                        <span className="text-sm text-emerald-700">AI suggested changes to your letter</span>
+                        <button
+                          onClick={handleApplySuggestion}
+                          className="px-3 py-1 bg-emerald-600 text-white text-xs font-medium rounded hover:bg-emerald-700 transition-colors"
+                        >
+                          Apply Changes
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Chat Input */}
+                    <div className="p-3 bg-white border-t border-[var(--border)] flex gap-2">
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={e => setChatInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleChatSend()}
+                        placeholder="e.g., Make it shorter, emphasize my React experience..."
+                        className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                        disabled={chatLoading}
+                      />
+                      <button
+                        onClick={handleChatSend}
+                        disabled={chatLoading || !chatInput.trim()}
+                        className="px-4 py-2 bg-[var(--accent)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -622,6 +856,84 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AIBadge({ suggestion, reasoning }: { suggestion: AISuggestion; reasoning?: string }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  const config = {
+    STRONG_FIT: {
+      label: 'Strong Fit',
+      bg: 'bg-emerald-100',
+      text: 'text-emerald-700',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+      ),
+    },
+    GOOD_FIT: {
+      label: 'Good Fit',
+      bg: 'bg-blue-100',
+      text: 'text-blue-700',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+        </svg>
+      ),
+    },
+    MAYBE: {
+      label: 'Maybe',
+      bg: 'bg-gray-100',
+      text: 'text-gray-600',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+    AUTO_DISMISS: {
+      label: 'Not Fit',
+      bg: 'bg-red-100',
+      text: 'text-red-600',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      ),
+    },
+  };
+
+  const { label, bg, text, icon } = config[suggestion] || config.MAYBE;
+
+  return (
+    <div className="relative inline-block">
+      <button
+        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${bg} ${text} cursor-help`}
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowTooltip(!showTooltip);
+        }}
+      >
+        {icon}
+        {label}
+      </button>
+      {showTooltip && reasoning && (
+        <div className="absolute z-50 top-full left-0 mt-2 w-72 p-4 bg-white rounded-lg shadow-lg border border-[var(--border)] text-sm text-[var(--ink)] font-normal">
+          <div className="flex items-center gap-1.5 mb-2 text-xs text-[var(--ink-muted)] font-medium">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            AI Analysis
+          </div>
+          {reasoning}
+          <div className="absolute top-0 left-6 w-2 h-2 bg-white border-t border-l border-[var(--border)] transform -translate-y-1/2 rotate-45"></div>
         </div>
       )}
     </div>
