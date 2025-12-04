@@ -10,6 +10,12 @@ mkdir -p /app/data
 echo "Contents of /app/data:"
 ls -la /app/data || echo "Directory empty or error listing"
 
+# Force reseed if requested
+if [ "$FORCE_RESEED" = "true" ] && [ -f /app/data/jobs.db ]; then
+    echo "FORCE_RESEED is set, removing existing database..."
+    rm -f /app/data/jobs.db /app/data/jobs.db-shm /app/data/jobs.db-wal
+fi
+
 # Download database if it doesn't exist and SEED_DB_URL is set
 if [ ! -f /app/data/jobs.db ]; then
     echo "Database not found at /app/data/jobs.db"
