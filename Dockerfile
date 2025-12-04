@@ -14,11 +14,12 @@ RUN npm run build
 # Production stage
 FROM node:20-slim AS runner
 
-# Install dependencies for better-sqlite3 native module
+# Install dependencies for better-sqlite3 native module and curl for DB seeding
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -37,19 +38,18 @@ COPY --from=web-builder /app/web/public ./web/public
 COPY --from=web-builder /app/web/package*.json ./web/
 COPY --from=web-builder /app/web/node_modules ./web/node_modules
 
-# Create data directory for SQLite
-RUN mkdir -p /app/data
+# Copy startup script
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=3000
 
 # The database will be stored in /app/data (mount a volume here)
-# Railway will set this via environment variable
 ENV DATABASE_PATH=/app/data/jobs.db
 
 EXPOSE 3000
 
-# Start the Next.js server
-WORKDIR /app/web
-CMD ["npm", "run", "start"]
+# Start via script (creates data dir, seeds DB if needed, starts server)
+CMD ["/app/start.sh"]
