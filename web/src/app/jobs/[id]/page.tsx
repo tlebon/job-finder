@@ -58,6 +58,7 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [suggestedEdit, setSuggestedEdit] = useState<string | null>(null);
+  const [lastChatLetter, setLastChatLetter] = useState<string>('');
 
   useEffect(() => {
     fetch(`/api/jobs/${id}`)
@@ -224,16 +225,41 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
 
     const userMessage = chatInput.trim();
     setChatInput('');
-    setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setChatLoading(true);
     setSuggestedEdit(null);
+
+    // Check if letter changed since last chat message
+    const letterChanged = lastChatLetter !== '' && editedLetter !== lastChatLetter;
+
+    // Build messages array, injecting context if letter changed
+    let updatedMessages = [...chatMessages];
+    if (letterChanged) {
+      // Calculate a brief summary of changes
+      const oldWords = lastChatLetter.split(/\s+/).length;
+      const newWords = editedLetter.split(/\s+/).length;
+      const wordDiff = newWords - oldWords;
+      const changeNote = wordDiff > 10 ? `(+${wordDiff} words)` :
+                         wordDiff < -10 ? `(${wordDiff} words)` : '';
+
+      updatedMessages.push({
+        role: 'assistant',
+        content: `[Letter was updated by user ${changeNote}]`
+      });
+    }
+
+    // Add the user's new message
+    updatedMessages.push({ role: 'user', content: userMessage });
+    setChatMessages(updatedMessages);
+
+    // Update the baseline for next comparison
+    setLastChatLetter(editedLetter);
 
     try {
       const res = await fetch(`/api/jobs/${id}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [...chatMessages, { role: 'user', content: userMessage }],
+          messages: updatedMessages,
           coverLetter: editedLetter,
         }),
       });
@@ -255,6 +281,7 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
   const handleApplySuggestion = () => {
     if (suggestedEdit) {
       setEditedLetter(suggestedEdit);
+      setLastChatLetter(suggestedEdit); // Track as new baseline so we don't flag it as "changed"
       setSuggestedEdit(null);
       setChatMessages(prev => [...prev, { role: 'assistant', content: '✓ Changes applied to the letter above.' }]);
     }
