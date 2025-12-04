@@ -87,8 +87,13 @@ export async function DELETE() {
 }
 
 export async function GET() {
+  const scraperDir = path.resolve(process.cwd(), '..');
   return NextResponse.json({
     isRunning,
     recentOutput: lastRunOutput.slice(-20), // Last 20 lines
+    debug: {
+      cwd: process.cwd(),
+      scraperDir,
+    }
   });
 }
