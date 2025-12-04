@@ -1,0 +1,59 @@
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import crypto from 'crypto';
+
+function hashPassword(password: string): string {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Skip auth check for login page and static assets
+  if (
+    pathname === '/login' ||
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/favicon') ||
+    pathname.endsWith('.ico') ||
+    pathname.endsWith('.png') ||
+    pathname.endsWith('.jpg') ||
+    pathname.endsWith('.svg')
+  ) {
+    return NextResponse.next();
+  }
+
+  // Check if APP_PASSWORD is set - if not, skip auth (for local dev)
+  const appPassword = process.env.APP_PASSWORD;
+  if (!appPassword) {
+    return NextResponse.next();
+  }
+
+  // Check for valid session cookie
+  const sessionCookie = request.cookies.get('session')?.value;
+  const expectedToken = hashPassword(appPassword + (process.env.SESSION_SECRET || 'default-secret'));
+
+  if (sessionCookie === expectedToken) {
+    return NextResponse.next();
+  }
+
+  // Redirect to login for page requests, return 401 for API requests
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const loginUrl = new URL('/login', request.url);
+  return NextResponse.redirect(loginUrl);
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+  ],
+};

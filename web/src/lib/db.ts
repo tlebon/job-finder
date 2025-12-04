@@ -1,8 +1,8 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 
-// Store database in project root (parent of web/)
-const dbPath = path.join(process.cwd(), '..', 'jobs.db');
+// Use DATABASE_PATH env var if set (for Docker), otherwise use parent directory
+const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), '..', 'jobs.db');
 const db = new Database(dbPath);
 
 // Enable WAL mode for better concurrent access

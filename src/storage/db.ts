@@ -6,8 +6,8 @@ import type { Job, RawJob } from '../types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Store database in project root
-const dbPath = path.join(__dirname, '..', '..', 'jobs.db');
+// Use DATABASE_PATH env var if set (for Docker), otherwise use project root
+const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '..', '..', 'jobs.db');
 const db: DatabaseType = new Database(dbPath);
 
 // Enable WAL mode for better concurrent access
