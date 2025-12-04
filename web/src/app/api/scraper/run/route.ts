@@ -16,6 +16,8 @@ export async function POST() {
 
   const scraperDir = path.resolve(process.cwd(), '..');
 
+  console.log(`[Scraper] Starting in directory: ${scraperDir}`);
+
   const proc = spawn('npx', ['tsx', 'src/index.ts'], {
     cwd: scraperDir,
     env: { ...process.env },
@@ -36,10 +38,18 @@ export async function POST() {
     console.error('[Scraper Error]', data.toString());
   });
 
+  proc.on('error', (err) => {
+    console.error('[Scraper] Failed to start:', err);
+    lastRunOutput.push(`Failed to start: ${err.message}`);
+    isRunning = false;
+    currentProcess = null;
+  });
+
   proc.on('close', (code) => {
     isRunning = false;
     currentProcess = null;
     console.log(`[Scraper] Process exited with code ${code}`);
+    lastRunOutput.push(`Process exited with code ${code}`);
   });
 
   return NextResponse.json({
