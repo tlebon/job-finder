@@ -21,7 +21,6 @@ const envSchema = z.object({
   ADZUNA_APP_ID: z.string().optional(),
   ADZUNA_APP_KEY: z.string().optional(),
   RAPIDAPI_KEY: z.string().optional(), // For JSearch
-  APIFY_TOKEN: z.string().optional(), // For LinkedIn scraping
 
   DRY_RUN: z.string().optional().transform(val => val === 'true'),
 });

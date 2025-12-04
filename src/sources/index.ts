@@ -7,7 +7,6 @@ import { fetchAdzunaJobs } from './adzuna.js';
 import { fetchHNWhoIsHiringJobs } from './hn-whoishiring.js';
 import { fetchJSearchJobs } from './jsearch.js';
 import { fetch80000HoursJobs } from './80000hours.js';
-import { fetchApifyLinkedInJobs } from './apify-linkedin.js';
 
 interface SourceResult {
   name: string;
@@ -40,13 +39,6 @@ export async function fetchAllJobs(): Promise<RawJob[]> {
     optionalSourcePromises.push(
       fetchJSearchJobs(env.RAPIDAPI_KEY)
         .then(jobs => ({ name: 'JSearch', jobs }))
-    );
-  }
-
-  if (env.APIFY_TOKEN) {
-    optionalSourcePromises.push(
-      fetchApifyLinkedInJobs(env.APIFY_TOKEN)
-        .then(jobs => ({ name: 'LinkedIn (Apify)', jobs }))
     );
   }
 

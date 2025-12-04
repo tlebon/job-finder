@@ -28,12 +28,23 @@ export async function fetchJSearchJobs(rapidApiKey?: string): Promise<RawJob[]> 
 
   // Search queries for relevant jobs
   const queries = [
+    // General Europe
     'react developer europe',
-    'frontend developer berlin',
     'fullstack developer remote europe',
+    'web3 developer europe',
+    // Germany
+    'frontend developer berlin',
     'typescript developer germany',
-    'web3 developer',
-    'blockchain developer europe',
+    // Portugal
+    'react developer lisbon',
+    'frontend developer portugal',
+    'software developer lisbon',
+    // Spain
+    'react developer barcelona',
+    'frontend developer madrid',
+    // France/Italy
+    'react developer paris',
+    'frontend developer milan',
   ];
 
   try {

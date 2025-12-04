@@ -24,7 +24,8 @@ export async function fetchAdzunaJobs(appId?: string, appKey?: string): Promise<
   }
 
   const jobs: RawJob[] = [];
-  const countries = ['de', 'nl', 'gb', 'at', 'pt', 'es', 'fr', 'it', 'be', 'ch']; // Germany, Netherlands, UK, Austria, Portugal, Spain, France, Italy, Belgium, Switzerland
+  // Adzuna supported countries (pt, es, be, ch not available)
+  const countries = ['de', 'nl', 'gb', 'at', 'fr', 'it', 'pl']; // Germany, Netherlands, UK, Austria, France, Italy, Poland
   const searchTerms = ['react developer', 'frontend developer', 'fullstack developer'];
 
   try {
