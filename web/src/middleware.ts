@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import crypto from 'crypto';
 
-function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex');
+// Use Web Crypto API (Edge-compatible) for hashing
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip auth check for login page and static assets
@@ -31,7 +35,7 @@ export function middleware(request: NextRequest) {
 
   // Check for valid session cookie
   const sessionCookie = request.cookies.get('session')?.value;
-  const expectedToken = hashPassword(appPassword + (process.env.SESSION_SECRET || 'default-secret'));
+  const expectedToken = await hashPassword(appPassword + (process.env.SESSION_SECRET || 'default-secret'));
 
   if (sessionCookie === expectedToken) {
     return NextResponse.next();

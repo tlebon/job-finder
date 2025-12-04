@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import crypto from 'crypto';
 
-// Simple hash function for the session token
-function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex');
+// Use Web Crypto API for hashing (same as middleware)
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export async function POST(request: NextRequest) {
@@ -20,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     if (password === correctPassword) {
       // Create a session token (hash of password + secret)
-      const sessionToken = hashPassword(password + (process.env.SESSION_SECRET || 'default-secret'));
+      const sessionToken = await hashPassword(password + (process.env.SESSION_SECRET || 'default-secret'));
 
       // Set the cookie
       const cookieStore = await cookies();
