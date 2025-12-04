@@ -1,9 +1,14 @@
 import { Telegraf } from 'telegraf';
 import { env } from '../config.js';
 
-const bot = new Telegraf(env.TELEGRAM_BOT_TOKEN);
+const bot = env.TELEGRAM_BOT_TOKEN ? new Telegraf(env.TELEGRAM_BOT_TOKEN) : null;
 
 export async function sendNotification(message: string): Promise<void> {
+  if (!bot || !env.TELEGRAM_CHAT_ID) {
+    console.log('Telegram: Skipping notification (no credentials)');
+    return;
+  }
+
   try {
     await bot.telegram.sendMessage(env.TELEGRAM_CHAT_ID, message, {
       parse_mode: 'HTML',

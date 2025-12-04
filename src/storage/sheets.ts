@@ -5,17 +5,26 @@ import { env } from '../config.js';
 
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 
+const hasGoogleCredentials = !!(
+  env.GOOGLE_SHEETS_ID &&
+  env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
+  env.GOOGLE_PRIVATE_KEY
+);
+
 function getAuth() {
+  if (!hasGoogleCredentials) return null;
   return new google.auth.GoogleAuth({
     credentials: {
       client_email: env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      private_key: env.GOOGLE_PRIVATE_KEY!.replace(/\\n/g, '\n'),
     },
     scopes: SCOPES,
   });
 }
 
-const sheets = google.sheets({ version: 'v4', auth: getAuth() });
+const sheets = hasGoogleCredentials
+  ? google.sheets({ version: 'v4', auth: getAuth()! })
+  : null;
 
 // Column order in the sheet
 const COLUMNS = [
@@ -34,9 +43,14 @@ const COLUMNS = [
 ];
 
 export async function getExistingJobUrls(): Promise<Set<string>> {
+  if (!sheets) {
+    console.log('Google Sheets: Skipping (no credentials)');
+    return new Set();
+  }
+
   try {
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: env.GOOGLE_SHEETS_ID,
+      spreadsheetId: env.GOOGLE_SHEETS_ID!,
       range: 'Sheet1!G:G', // URL column
     });
 
@@ -64,6 +78,11 @@ export async function appendJobs(jobs: Job[]): Promise<number> {
     return 0;
   }
 
+  if (!sheets) {
+    console.log('Google Sheets: Skipping append (no credentials)');
+    return 0;
+  }
+
   try {
     const rows = jobs.map(job => [
       job.id,
@@ -81,7 +100,7 @@ export async function appendJobs(jobs: Job[]): Promise<number> {
     ]);
 
     await sheets.spreadsheets.values.append({
-      spreadsheetId: env.GOOGLE_SHEETS_ID,
+      spreadsheetId: env.GOOGLE_SHEETS_ID!,
       range: 'Sheet1!A:L',
       valueInputOption: 'RAW',
       requestBody: {
@@ -98,9 +117,11 @@ export async function appendJobs(jobs: Job[]): Promise<number> {
 }
 
 export async function ensureSheetHeaders(): Promise<void> {
+  if (!sheets) return;
+
   try {
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: env.GOOGLE_SHEETS_ID,
+      spreadsheetId: env.GOOGLE_SHEETS_ID!,
       range: 'Sheet1!A1:L1',
     });
 
@@ -109,7 +130,7 @@ export async function ensureSheetHeaders(): Promise<void> {
     if (!existingHeaders || existingHeaders.length === 0) {
       // Add headers
       await sheets.spreadsheets.values.update({
-        spreadsheetId: env.GOOGLE_SHEETS_ID,
+        spreadsheetId: env.GOOGLE_SHEETS_ID!,
         range: 'Sheet1!A1:L1',
         valueInputOption: 'RAW',
         requestBody: {

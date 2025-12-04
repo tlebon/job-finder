@@ -7,11 +7,15 @@ config({ quiet: true });
 const envSchema = z.object({
   // Required
   ANTHROPIC_API_KEY: z.string().min(1),
-  GOOGLE_SHEETS_ID: z.string().min(1),
-  GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email(),
-  GOOGLE_PRIVATE_KEY: z.string().min(1),
-  TELEGRAM_BOT_TOKEN: z.string().min(1),
-  TELEGRAM_CHAT_ID: z.string().min(1),
+
+  // Optional - Google Sheets (for syncing)
+  GOOGLE_SHEETS_ID: z.string().optional(),
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().optional(),
+  GOOGLE_PRIVATE_KEY: z.string().optional(),
+
+  // Optional - Telegram notifications
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_CHAT_ID: z.string().optional(),
 
   // Optional - additional job sources
   ADZUNA_APP_ID: z.string().optional(),
