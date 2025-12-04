@@ -29,12 +29,24 @@ export async function fetchApifyLinkedInJobs(apifyToken?: string): Promise<RawJo
 
   // Search configurations
   const searches = [
+    // Core locations
     { keywords: 'react developer', location: 'Berlin, Germany' },
     { keywords: 'frontend developer', location: 'Berlin, Germany' },
     { keywords: 'fullstack developer', location: 'Amsterdam, Netherlands' },
-    { keywords: 'react developer', location: 'European Union', remote: true },
-    { keywords: 'web3 developer', location: 'European Union' },
     { keywords: 'typescript developer', location: 'Germany' },
+    // Portugal
+    { keywords: 'react developer', location: 'Lisbon, Portugal' },
+    { keywords: 'frontend developer', location: 'Portugal' },
+    // Spain (English jobs)
+    { keywords: 'react developer', location: 'Barcelona, Spain' },
+    { keywords: 'frontend developer', location: 'Madrid, Spain' },
+    // Other EU
+    { keywords: 'react developer', location: 'Paris, France' },
+    { keywords: 'frontend developer', location: 'Milan, Italy' },
+    // EU-wide remote
+    { keywords: 'react developer', location: 'European Union', remote: true },
+    { keywords: 'frontend developer', location: 'European Union', remote: true },
+    { keywords: 'web3 developer', location: 'European Union', remote: true },
   ];
 
   try {

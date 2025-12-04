@@ -120,6 +120,11 @@ export const filterConfig: FilterConfig = {
     /switzerland/i,
     /austria/i,
     /france/i,
+    /italy/i,
+    /milan/i,
+    /belgium/i,
+    /brussels/i,
+    /madrid/i,
     // Remote - general
     /remote/i,
     /distributed/i,
