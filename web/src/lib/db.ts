@@ -3,108 +3,126 @@ import path from 'path';
 
 // Use DATABASE_PATH env var if set (for Docker), otherwise use parent directory
 const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), '..', 'jobs.db');
-const db = new Database(dbPath);
 
-// Enable WAL mode for better concurrent access
-db.pragma('journal_mode = WAL');
+// Lazy database initialization to avoid conflicts during Next.js build
+let _db: Database.Database | null = null;
 
-// Create table if not exists
-db.exec(`
-  CREATE TABLE IF NOT EXISTS jobs (
-    id TEXT PRIMARY KEY,
-    date_found TEXT NOT NULL,
-    source TEXT NOT NULL,
-    company TEXT NOT NULL,
-    title TEXT NOT NULL,
-    location TEXT NOT NULL,
-    url TEXT UNIQUE NOT NULL,
-    description TEXT,
-    cover_letter TEXT,
-    status TEXT DEFAULT 'NEW',
-    score INTEGER DEFAULT 0,
-    notes TEXT,
-    applied_date TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-  )
-`);
+function getDb(): Database.Database {
+  if (_db) return _db;
 
-// Add score column if it doesn't exist (migration)
-try {
-  db.exec(`ALTER TABLE jobs ADD COLUMN score INTEGER DEFAULT 0`);
-} catch {
-  // Column already exists
+  _db = new Database(dbPath);
+
+  // Enable WAL mode for better concurrent access
+  _db.pragma('journal_mode = WAL');
+
+  // Create table if not exists
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS jobs (
+      id TEXT PRIMARY KEY,
+      date_found TEXT NOT NULL,
+      source TEXT NOT NULL,
+      company TEXT NOT NULL,
+      title TEXT NOT NULL,
+      location TEXT NOT NULL,
+      url TEXT UNIQUE NOT NULL,
+      description TEXT,
+      cover_letter TEXT,
+      status TEXT DEFAULT 'NEW',
+      score INTEGER DEFAULT 0,
+      notes TEXT,
+      applied_date TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Add score column if it doesn't exist (migration)
+  try {
+    _db.exec(`ALTER TABLE jobs ADD COLUMN score INTEGER DEFAULT 0`);
+  } catch {
+    // Column already exists
+  }
+
+  // Add AI review columns (migration)
+  try {
+    _db.exec(`ALTER TABLE jobs ADD COLUMN ai_reviewed INTEGER DEFAULT 0`);
+    _db.exec(`ALTER TABLE jobs ADD COLUMN ai_suggestion TEXT`);
+    _db.exec(`ALTER TABLE jobs ADD COLUMN ai_reasoning TEXT`);
+  } catch {
+    // Columns already exist
+  }
+
+  // Create index for common queries
+  _db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+    CREATE INDEX IF NOT EXISTS idx_jobs_date_found ON jobs(date_found);
+  `);
+
+  // Blocklist table for learning from NOT_FIT feedback
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS blocklist (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      value TEXT NOT NULL,
+      reason TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(type, value)
+    )
+  `);
+
+  // Profile table for user info (used in cover letters)
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS profile (
+      id TEXT PRIMARY KEY DEFAULT 'default',
+      name TEXT,
+      title TEXT,
+      location TEXT,
+      email TEXT,
+      phone TEXT,
+      linkedin TEXT,
+      github TEXT,
+      website TEXT,
+      summary TEXT,
+      experience TEXT,
+      skills TEXT,
+      preferences TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Filter rules table (configurable filtering)
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS filter_rules (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      pattern TEXT NOT NULL,
+      weight INTEGER DEFAULT 0,
+      enabled INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Job queue table (persist generation jobs)
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS job_queue (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      error TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      completed_at TEXT
+    )
+  `);
+
+  return _db;
 }
 
-// Add AI review columns (migration)
-try {
-  db.exec(`ALTER TABLE jobs ADD COLUMN ai_reviewed INTEGER DEFAULT 0`);
-  db.exec(`ALTER TABLE jobs ADD COLUMN ai_suggestion TEXT`);
-  db.exec(`ALTER TABLE jobs ADD COLUMN ai_reasoning TEXT`);
-} catch {
-  // Columns already exist
-}
-
-// Create index for common queries
-db.exec(`
-  CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
-  CREATE INDEX IF NOT EXISTS idx_jobs_date_found ON jobs(date_found);
-`);
-
-// Blocklist table for learning from NOT_FIT feedback
-db.exec(`
-  CREATE TABLE IF NOT EXISTS blocklist (
-    id TEXT PRIMARY KEY,
-    type TEXT NOT NULL,
-    value TEXT NOT NULL,
-    reason TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(type, value)
-  )
-`);
-
-// Profile table for user info (used in cover letters)
-db.exec(`
-  CREATE TABLE IF NOT EXISTS profile (
-    id TEXT PRIMARY KEY DEFAULT 'default',
-    name TEXT,
-    title TEXT,
-    location TEXT,
-    email TEXT,
-    phone TEXT,
-    linkedin TEXT,
-    github TEXT,
-    website TEXT,
-    summary TEXT,
-    experience TEXT,
-    skills TEXT,
-    preferences TEXT,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-  )
-`);
-
-// Filter rules table (configurable filtering)
-db.exec(`
-  CREATE TABLE IF NOT EXISTS filter_rules (
-    id TEXT PRIMARY KEY,
-    type TEXT NOT NULL,
-    pattern TEXT NOT NULL,
-    weight INTEGER DEFAULT 0,
-    enabled INTEGER DEFAULT 1,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-  )
-`);
-
-// Job queue table (persist generation jobs)
-db.exec(`
-  CREATE TABLE IF NOT EXISTS job_queue (
-    id TEXT PRIMARY KEY,
-    job_id TEXT NOT NULL,
-    status TEXT DEFAULT 'pending',
-    error TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    completed_at TEXT
-  )
-`);
+// Lazy proxy - defers database initialization until first access
+const db = new Proxy({} as Database.Database, {
+  get(_, prop) {
+    const instance = getDb();
+    return (instance as unknown as Record<string | symbol, unknown>)[prop];
+  },
+});
 
 export type AISuggestion = 'STRONG_FIT' | 'GOOD_FIT' | 'MAYBE' | 'AUTO_DISMISS';
 
