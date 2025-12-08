@@ -301,6 +301,30 @@ export function getJobsByStatus(status: string): Job[] {
   return rows.map(rowToJob);
 }
 
+// Get jobs added since a specific date (for summary feature)
+export function getJobsSince(since: string): Job[] {
+  const rows = db.prepare('SELECT * FROM jobs WHERE date_found > ? ORDER BY score DESC').all(since) as JobRow[];
+  return rows.map(rowToJob);
+}
+
+// Get top new jobs with AI review data since a date
+export function getTopJobsSince(since: string, limit: number = 5): Job[] {
+  const rows = db.prepare(`
+    SELECT * FROM jobs
+    WHERE date_found > ?
+      AND ai_suggestion IN ('STRONG_FIT', 'GOOD_FIT')
+    ORDER BY
+      CASE ai_suggestion
+        WHEN 'STRONG_FIT' THEN 1
+        WHEN 'GOOD_FIT' THEN 2
+        ELSE 3
+      END,
+      score DESC
+    LIMIT ?
+  `).all(since, limit) as JobRow[];
+  return rows.map(rowToJob);
+}
+
 // Update job with cover letter and status
 export function updateJobWithLetter(id: string, coverLetter: string, status: string = 'NEW'): boolean {
   const result = db.prepare('UPDATE jobs SET cover_letter = ?, status = ? WHERE id = ?').run(coverLetter, status, id);

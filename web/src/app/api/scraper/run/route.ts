@@ -1,18 +1,19 @@
 import { NextResponse } from 'next/server';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn } from 'child_process';
 import path from 'path';
-
-let isRunning = false;
-let lastRunOutput: string[] = [];
-let currentProcess: ChildProcess | null = null;
+import { scraperState, setScraperRunning, isScraperRunning, getScraperState } from '@/lib/scraperState';
 
 export async function POST() {
-  if (isRunning) {
-    return NextResponse.json({ error: 'Scraper is already running' }, { status: 409 });
+  if (isScraperRunning()) {
+    return NextResponse.json({
+      error: 'Scraper is already running',
+      triggeredBy: scraperState.triggeredBy,
+    }, { status: 409 });
   }
 
-  isRunning = true;
-  lastRunOutput = [];
+  setScraperRunning(true, 'api');
+  scraperState.lastRunOutput = [];
+  scraperState.lastRunTime = new Date();
 
   const scraperDir = path.resolve(process.cwd(), '..');
 
@@ -24,61 +25,60 @@ export async function POST() {
     shell: true,
   });
 
-  currentProcess = proc;
+  scraperState.currentProcess = proc;
 
   proc.stdout.on('data', (data) => {
     const lines = data.toString().split('\n').filter(Boolean);
-    lastRunOutput.push(...lines);
+    scraperState.lastRunOutput.push(...lines);
     console.log('[Scraper]', data.toString());
   });
 
   proc.stderr.on('data', (data) => {
     const lines = data.toString().split('\n').filter(Boolean);
-    lastRunOutput.push(...lines);
+    scraperState.lastRunOutput.push(...lines);
     console.error('[Scraper Error]', data.toString());
   });
 
   proc.on('error', (err) => {
     console.error('[Scraper] Failed to start:', err);
-    lastRunOutput.push(`Failed to start: ${err.message}`);
-    isRunning = false;
-    currentProcess = null;
+    scraperState.lastRunOutput.push(`Failed to start: ${err.message}`);
+    scraperState.lastRunStatus = 'error';
+    setScraperRunning(false);
   });
 
   proc.on('close', (code) => {
-    isRunning = false;
-    currentProcess = null;
+    setScraperRunning(false);
+    scraperState.lastRunStatus = code === 0 ? 'success' : 'error';
     console.log(`[Scraper] Process exited with code ${code}`);
-    lastRunOutput.push(`Process exited with code ${code}`);
+    scraperState.lastRunOutput.push(`Process exited with code ${code}`);
   });
 
   return NextResponse.json({
     started: true,
-    message: 'Scraper started in background'
+    message: 'Scraper started in background',
+    triggeredBy: 'api',
   });
 }
 
 export async function DELETE() {
-  if (!isRunning || !currentProcess) {
+  if (!isScraperRunning() || !scraperState.currentProcess) {
     return NextResponse.json({ error: 'No scraper is running' }, { status: 404 });
   }
 
   try {
-    // Kill the process and its children (shell: true spawns a shell)
-    currentProcess.kill('SIGTERM');
+    scraperState.currentProcess.kill('SIGTERM');
 
-    // Force kill after 2 seconds if still running
     setTimeout(() => {
-      if (currentProcess && !currentProcess.killed) {
-        currentProcess.kill('SIGKILL');
+      if (scraperState.currentProcess && !scraperState.currentProcess.killed) {
+        scraperState.currentProcess.kill('SIGKILL');
       }
     }, 2000);
 
-    lastRunOutput.push('[Cancelled by user]');
+    scraperState.lastRunOutput.push('[Cancelled by user]');
 
     return NextResponse.json({
       cancelled: true,
-      message: 'Scraper cancellation requested'
+      message: 'Scraper cancellation requested',
     });
   } catch (error) {
     console.error('Error cancelling scraper:', error);
@@ -88,12 +88,13 @@ export async function DELETE() {
 
 export async function GET() {
   const scraperDir = path.resolve(process.cwd(), '..');
+  const state = getScraperState();
+
   return NextResponse.json({
-    isRunning,
-    recentOutput: lastRunOutput.slice(-20), // Last 20 lines
+    ...state,
     debug: {
       cwd: process.cwd(),
       scraperDir,
-    }
+    },
   });
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { NewJobsSummary } from '@/components/NewJobsSummary';
 
 interface Job {
   id: string;
@@ -197,6 +198,9 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* New Jobs Summary - shown when returning after time away */}
+        <NewJobsSummary />
+
         {/* Metrics Dashboard */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 stagger-children">
           <MetricCard
