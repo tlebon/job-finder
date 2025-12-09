@@ -19,8 +19,8 @@ interface JSearchResponse {
 // JSearch API via RapidAPI
 // Sign up at https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch
 export async function fetchJSearchJobs(rapidApiKey?: string): Promise<RawJob[]> {
-  if (!rapidApiKey) {
-    console.log('JSearch: Skipping (no RapidAPI key)');
+  if (!rapidApiKey || rapidApiKey === 'disabled') {
+    console.log('JSearch: Skipping (no RapidAPI key or disabled)');
     return [];
   }
 
