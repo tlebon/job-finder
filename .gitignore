@@ -12,3 +12,6 @@ dist/
 # Personal examples
 examples/
 data/examples/
+
+# JSearch rate limit cache
+.jsearch-cache.json

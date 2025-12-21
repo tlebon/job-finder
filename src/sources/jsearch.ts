@@ -1,4 +1,6 @@
 import type { RawJob } from '../types.js';
+import fs from 'fs';
+import path from 'path';
 
 interface JSearchJob {
   job_id: string;
@@ -16,39 +18,65 @@ interface JSearchResponse {
   data: JSearchJob[];
 }
 
+// Cache file to track last JSearch run
+const CACHE_FILE = path.join(process.cwd(), '.jsearch-cache.json');
+const CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+interface JSearchCache {
+  lastRun: number;
+}
+
+function shouldRunJSearch(): boolean {
+  try {
+    if (fs.existsSync(CACHE_FILE)) {
+      const cache: JSearchCache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf-8'));
+      const elapsed = Date.now() - cache.lastRun;
+      if (elapsed < CACHE_DURATION_MS) {
+        const hoursRemaining = Math.round((CACHE_DURATION_MS - elapsed) / (60 * 60 * 1000));
+        console.log(`JSearch: Skipping (ran ${Math.round(elapsed / (60 * 60 * 1000))}h ago, next run in ~${hoursRemaining}h)`);
+        return false;
+      }
+    }
+  } catch {
+    // Cache file doesn't exist or is invalid, proceed with run
+  }
+  return true;
+}
+
+function updateJSearchCache(): void {
+  try {
+    fs.writeFileSync(CACHE_FILE, JSON.stringify({ lastRun: Date.now() }));
+  } catch (err) {
+    console.error('JSearch: Failed to write cache file:', err);
+  }
+}
+
 // JSearch API via RapidAPI
 // Sign up at https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch
+// Free tier: 200 requests/month (~6-7/day)
 export async function fetchJSearchJobs(rapidApiKey?: string): Promise<RawJob[]> {
   if (!rapidApiKey || rapidApiKey === 'disabled') {
     console.log('JSearch: Skipping (no RapidAPI key or disabled)');
     return [];
   }
 
+  // Check 24-hour cache to avoid excessive API usage
+  if (!shouldRunJSearch()) {
+    return [];
+  }
+
   const jobs: RawJob[] = [];
 
-  // Search queries for relevant jobs
+  // Reduced queries to stay within free tier (200/month)
+  // 3 queries × 1 run/day × 30 days = 90 requests/month (safe margin)
   const queries = [
-    // General Europe
-    'react developer europe',
-    'fullstack developer remote europe',
-    'web3 developer europe',
-    // Germany
-    'frontend developer berlin',
-    'typescript developer germany',
-    // Portugal
-    'react developer lisbon',
-    'frontend developer portugal',
-    'software developer lisbon',
-    // Spain
-    'react developer barcelona',
-    'frontend developer madrid',
-    // France/Italy
-    'react developer paris',
-    'frontend developer milan',
+    'react developer remote europe',
+    'frontend developer germany portugal spain',
+    'fullstack developer berlin lisbon barcelona',
   ];
 
   try {
-    console.log('Fetching JSearch jobs...');
+    console.log(`Fetching JSearch jobs (${queries.length} queries)...`);
 
     for (const query of queries) {
       const url = new URL('https://jsearch.p.rapidapi.com/search');
@@ -93,6 +121,9 @@ export async function fetchJSearchJobs(rapidApiKey?: string): Promise<RawJob[]> 
     const uniqueJobs = Array.from(
       new Map(jobs.map(j => [j.url, j])).values()
     );
+
+    // Update cache after successful run
+    updateJSearchCache();
 
     console.log(`Found ${uniqueJobs.length} jobs from JSearch`);
     return uniqueJobs;
