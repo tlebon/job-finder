@@ -53,54 +53,82 @@ function buildStyleGuide(): string {
   const name = profile?.name || 'Timothy LeBon';
 
   return `
-WRITING STYLE:
-- Professional but genuine tone - not corporate speak
-- Direct opening: state the position and show familiarity with the company/product
-- Show you've researched them - reference specific products, features, or mission
-- Confident without arrogance
-- End with: "I'd welcome the opportunity to discuss..."
-- Close with "Thank you for your consideration," and sign as "${name}"
+# TIM'S VOICE - WRITING STYLE GUIDE
 
-STRUCTURE:
-1. Opening paragraph: Position + genuine connection to company/product (show you know them)
-2. Technical Experience section: Use bullet points for key technical details
-3. Why [Company] section: What specifically excites you about THIS role/product
-4. Closing: Express interest in discussing further
+You are writing in Tim's authentic voice. This is critical. Tim's voice is direct, honest, human, and free of AI-generated corporate speak.
 
-FORMAT:
-- Do NOT use any markdown formatting (no **bold**, no headers with #, no _italics_)
-- Section headers should be plain text on their own line (e.g., "Technical Background" not "**Technical Background**")
-- Use bullet points (•) for technical lists - makes it scannable
-- Keep paragraphs focused - one idea per paragraph
-- Output plain text only - this will be exported to PDF/DOCX
+## CORE VOICE PRINCIPLES
 
-LENGTH: 400-500 words - substantial but focused
+### Directness Over Diplomacy
+Get to the point. No preamble, no setup, no hedging.
+- NOT: "I hope this message finds you well. I wanted to reach out regarding..."
+- YES: "I'm applying for the Frontend Engineer position."
 
-ABSOLUTELY AVOID THESE AI WRITING PATTERNS:
-- "I am excited to..." / "I was thrilled to..." / "I am eager to..."
-- "I am confident that..." / "I firmly believe..."
-- "leverage" as a verb
-- "synergy" / "synergistic" / "holistic"
-- "passionate about" (overused to meaninglessness)
-- "unique opportunity" / "exciting opportunity"
-- "hit the ground running"
-- "proven track record"
-- "dynamic environment" / "fast-paced environment"
-- "I would be a great fit because..."
-- "I am writing to express my interest in..."
-- "seasoned professional" / "results-driven"
-- "think outside the box" / "go above and beyond"
-- "team player" without specific examples
-- Starting multiple sentences with "I"
-- Vague superlatives without evidence
+### Honest Without Over-Explaining
+State facts directly. No defensive justification.
+- NOT: "While I may not have X, I do have Y..."
+- YES: State what you have. Period.
 
-INSTEAD:
-- Write like a real person, not a press release
-- Use specific examples instead of vague claims
-- Vary sentence structure and length
-- Show, don't tell - if you're collaborative, describe a collaboration
-- Be direct about what you did, not what you "helped" with
-- Confidence without desperation - they need good people too
+### Short Sentences, Natural Rhythm
+Write how people actually think and speak. Sentences breathe. Vary length naturally.
+- Mix short punchy sentences with longer ones
+- NOT: Long compound sentences with multiple clauses that try to capture complex ideas in one breath
+
+### Strong Opinions, Clearly Stated
+Take positions. No "perhaps" or "it seems" when you believe something.
+- NOT: "It might be worth considering whether..."
+- YES: "I want to work on products that respect user privacy."
+
+## STRUCTURE FOR COVER LETTERS
+
+1. Direct opening - state the position and genuine connection to company/product
+2. Technical experience - specific examples of relevant work
+3. Why this company - what specifically draws you to THIS role
+4. Brief closing - express interest without desperation
+
+Sign as "${name}"
+
+## FORMAT RULES
+- Plain text only - no markdown (no **bold**, no #headers, no _italics_)
+- NO em dashes for asides (biggest AI tell!) - use periods instead
+- NO section headers like "THE OPPORTUNITY" or "WHAT I BRING"
+- Write in paragraphs, not bullet lists
+- 400-500 words
+
+## ABSOLUTELY NEVER USE (AI SLOP)
+
+### Corporate Jargon:
+"leverage", "utilize", "facilitate", "synergy", "moving forward", "circle back", "touch base", "reach out", "core competencies", "value add"
+
+### Hedging Phrases:
+"Perhaps we should...", "It might be worth...", "One could argue...", "It seems that...", "In my opinion..." (just state the opinion)
+
+### Excessive Politeness:
+"I hope this email finds you well", "Please don't hesitate to...", "I'd be happy to help", "Thank you so much for your time and consideration"
+
+### Generic Enthusiasm:
+"I am excited about...", "I am passionate about...", "I would love the chance to...", "unique opportunity", "exciting opportunity"
+
+### Defensive Language:
+"I know I'm not perfect, but...", "While I may not have X...", "Despite my lack of...", "I hope you'll overlook..."
+
+### Other AI Patterns:
+"proven track record", "hit the ground running", "dynamic environment", "think outside the box", "go above and beyond", "seasoned professional", "results-driven", "I am writing to express my interest in..."
+
+## WHAT TIM'S VOICE SOUNDS LIKE
+
+From actual cover letter:
+"I'm applying for the AI Engineer position on the DeepL Agent team. Building agentic AI systems that solve real business problems - rather than chasing hype - is exactly where I want to focus my career right now."
+
+From resignation letter:
+"I regret to inform you that I am resigning from Wire. For the last few months, I have been having headaches. My personal doctor has attributed it to migraines due to stress. I cannot play with my health again. I need to stop."
+
+## THE CORE DIFFERENCE
+
+AI writing tries to be: Formally polite, comprehensive, structured, inoffensive, safe
+Tim's writing is: Genuinely warm, concise, natural flow, honest, human, real
+
+Write like a real human talking to another real human. Not like a corporate drone, an AI assistant, or someone afraid of judgment.
 `;
 }
 
