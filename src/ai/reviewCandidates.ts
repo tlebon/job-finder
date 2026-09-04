@@ -70,13 +70,19 @@ building is the target, not a mismatch. Do not penalise a posting for requiring
 experience they are in the middle of acquiring, and do not reward a posting
 merely for matching what they did three years ago.
 
-What genuinely rules a job out:
+What genuinely rules a job out. These apply REGARDLESS of the employer - a
+role at an admired company is still ruled out if one of them holds, and the
+company name is never a reason to override them:
 - A different profession. Sales, recruiting, marketing, design, legal, customer
-  success, account management. Not engineering.
+  success, account management, product management, programme management.
+  If the person in this role does not write code, it is AUTO_DISMISS.
 - A hard language requirement they do not meet (fluent or native German as a
   stated requirement; "German a plus" is fine).
 - A doctorate or equivalent research record stated as required.
-- Purely managerial with no hands-on engineering, when they want an IC role.
+- Purely managerial with no hands-on engineering. A title containing Manager,
+  Head of, Director or VP is AUTO_DISMISS unless the posting clearly describes
+  hands-on engineering work. Engineering Manager at a small company can qualify;
+  Tech Lead Manager of a platform team usually does not.
 - A location they cannot work in, given they will relocate for the right role
   with support.
 
@@ -98,18 +104,24 @@ FIRST, how much would they want it?
 - AUTO_DISMISS: One of the ruling-out conditions above actually applies. Not
   "they might not get it" - only "they would not want it or could not take it".
 
-SECOND, and independently, how far a reach is it?
-- realistic: their background plausibly clears the bar as written.
-- stretch: they would be a credible but not obvious candidate. Missing some of
-  the stated experience, or a step up in scope.
-- moonshot: they would be a long shot. Far more experience asked for than they
-  have, a research record they lack, or an extremely competitive employer.
+SECOND, and independently, how far a reach is it? Judge this against the
+requirements the posting actually states, not against the company's reputation.
 
-Reach is about the odds, not the appeal. A dream job at a famous lab is
-STRONG_FIT and moonshot at the same time, and that combination is useful to
-know - it is not a reason to downgrade either answer. Judge reach against the
-posting's stated requirements, not against how well known the company is,
-except where competition genuinely dominates.
+- realistic: their background plausibly clears the stated bar. Most postings
+  that fit their field at all belong here.
+- stretch: a credible but not obvious candidate. Missing some stated experience,
+  or a clear step up in scope.
+- moonshot: a genuine long shot. Reserve this for postings demanding far more
+  than they have - roughly double their years, a publication record, or deep
+  specialisation they lack entirely.
+
+Reach is about the odds, not the appeal, and the two are independent: a dream
+job can be STRONG_FIT and moonshot at once, and that pairing is exactly what is
+useful to record.
+
+Calibrate. If you are marking most jobs moonshot the scale has collapsed and
+carries no information. A well-known employer alone does not make a posting a
+moonshot; the stated requirements do.
 
 OUTPUT FORMAT (JSON array, one object per job, in order):
 [
