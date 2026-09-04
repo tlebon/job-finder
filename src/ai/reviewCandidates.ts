@@ -60,17 +60,38 @@ CANDIDATE PROFILE:
 JOBS TO REVIEW:
 ${jobDescriptions}
 
-For EACH job, evaluate:
-1. Does the role match the candidate's skills and experience level?
-2. Is the location compatible (remote, or candidate's location, or they mentioned being open to relocation)?
-3. Is the seniority appropriate (not too junior, not requiring 15+ years)?
-4. Are there any red flags (obvious mismatch, spam posting, requires skills they don't have)?
+The question is whether the candidate would CONSIDER APPLYING - not whether they
+are the strongest applicant. Those differ, and for someone mid-career-change they
+often point opposite ways.
+
+This candidate is changing direction. A role asking for skills they are actively
+building is the target, not a mismatch. Do not penalise a posting for requiring
+experience they are in the middle of acquiring, and do not reward a posting
+merely for matching what they did three years ago.
+
+What genuinely rules a job out:
+- A different profession. Sales, recruiting, marketing, design, legal, customer
+  success, account management. Not engineering.
+- A hard language requirement they do not meet (fluent or native German as a
+  stated requirement; "German a plus" is fine).
+- A doctorate or equivalent research record stated as required.
+- Purely managerial with no hands-on engineering, when they want an IC role.
+- A location they cannot work in, given they will relocate for the right role
+  with support.
+
+What does NOT rule a job out:
+- Asking for more years than they have. A stretch is their call to make.
+- Naming tools they have not used, when the shape of the work fits.
+- Being a famous or highly competitive employer. Aiming high is their decision.
+- Being outside their previous industry, if the engineering fits.
 
 Categorize each job as:
-- STRONG_FIT: Excellent match for skills and preferences, should definitely apply
-- GOOD_FIT: Solid match, worth applying
-- MAYBE: Some fit but uncertain, candidate should review manually
-- AUTO_DISMISS: Obvious mismatch (wrong field, wrong seniority, location incompatible, etc.)
+- STRONG_FIT: They would want to apply. Either it is squarely the work they are
+  moving toward, or it is a strong match at a company that fits their values.
+- GOOD_FIT: Worth applying to. Real overlap, some compromise.
+- MAYBE: Genuinely unclear, or a big stretch that is still plausibly worth a shot.
+- AUTO_DISMISS: One of the ruling-out conditions above actually applies. Not
+  "they might not get it" - only "they would not want it or could not take it".
 
 OUTPUT FORMAT (JSON array, one object per job, in order):
 [
@@ -88,7 +109,12 @@ Score adjustments:
 - MAYBE: -10 to +10
 - AUTO_DISMISS: -50
 
-Be conservative with AUTO_DISMISS - only use it for obvious mismatches. When in doubt, use MAYBE.`;
+Be conservative with AUTO_DISMISS. It is for jobs the candidate would not want
+or could not take, never for jobs they might not be selected for. When in doubt,
+use MAYBE.
+
+Judge each posting on its own. The jobs in this batch are unrelated to one
+another and their order carries no meaning.`;
 
   try {
     const message = await anthropic.messages.create({
