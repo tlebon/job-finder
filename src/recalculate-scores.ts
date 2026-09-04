@@ -11,7 +11,11 @@
  *
  * Usage:
  *   npx tsx src/recalculate-scores.ts --dry-run
- *   npx tsx src/recalculate-scores.ts --confirm
+ *   npx tsx src/recalculate-scores.ts --confirm [--prune]
+ *
+ * --prune archives jobs that no longer pass the filter. Needed after a filter
+ * change, since jobs admitted under looser rules otherwise sit in the list
+ * forever. Never touches anything the user has acted on.
  */
 
 import { config } from 'dotenv';
@@ -38,6 +42,7 @@ function main(): void {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const confirm = args.includes('--confirm');
+  const prune = args.includes('--prune');
 
   if (!dryRun && !confirm) {
     console.error('Specify --dry-run or --confirm');
@@ -54,10 +59,12 @@ function main(): void {
   console.log(`Recalculating ${jobs.length} jobs\n`);
 
   const update = db.prepare('UPDATE jobs SET score = ?, categories = ?, requires_relocation = ? WHERE id = ?');
+  const archive = db.prepare("UPDATE jobs SET status = 'ARCHIVED', updated_at = ? WHERE id = ?");
 
   let changed = 0;
   let unchanged = 0;
   let nowExcluded = 0;
+  let pruned = 0;
   const deltas: number[] = [];
 
   for (const job of jobs) {
@@ -72,6 +79,12 @@ function main(): void {
 
     if (!result.passed) {
       nowExcluded++;
+      // Only prune untouched jobs. Anything applied to, interviewing, or
+      // explicitly marked stays regardless of what the filter now thinks.
+      if (prune && confirm && (job.status === 'NEW' || job.status === 'PENDING')) {
+        archive.run(new Date().toISOString(), job.id);
+        pruned++;
+      }
       continue;
     }
 
@@ -101,7 +114,7 @@ function main(): void {
 
   console.log(`Changed:      ${changed}`);
   console.log(`Unchanged:    ${unchanged}`);
-  console.log(`No longer passing filter (left untouched): ${nowExcluded}`);
+  console.log(`No longer passing filter: ${nowExcluded}${prune ? ` (${pruned} archived)` : ' (left untouched; pass --prune to archive)'}`);
   if (deltas.length) {
     console.log(`Score delta:  median ${median}, min ${deltas[0]}, max ${deltas[deltas.length - 1]}`);
   }
