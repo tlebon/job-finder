@@ -388,16 +388,22 @@ export function getDeadJobs(): Job[] {
 
 // Archive jobs that have sat un-actioned past the age cutoff.
 // Only untouched statuses are archived — anything the user engaged with is kept.
-export function archiveStaleJobs(daysOld: number = 30): number {
+export function archiveStaleJobs(daysOld: number = 30, keepScoreAbove: number = 60): number {
   const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000).toISOString();
   const now = new Date().toISOString();
 
+  // Age alone is a bad reason to hide a strong match. A METR role scoring 88 -
+  // the highest in the database - was archived purely for being 30 days old,
+  // and it was a company on Tim's own shortlist. Strong AI verdicts and
+  // high-scoring jobs stay visible regardless of age.
   const result = db.prepare(`
     UPDATE jobs
     SET status = 'ARCHIVED', updated_at = ?
     WHERE status IN ('NEW', 'PENDING')
       AND date_found < ?
-  `).run(now, cutoff);
+      AND COALESCE(score, 0) < ?
+      AND COALESCE(ai_suggestion, '') NOT IN ('STRONG_FIT', 'GOOD_FIT')
+  `).run(now, cutoff, keepScoreAbove);
 
   return result.changes;
 }
@@ -427,12 +433,15 @@ export function setLastVisited(timestamp: string = new Date().toISOString()): vo
   `).run(LAST_VISITED_KEY, timestamp, new Date().toISOString());
 }
 
-export function countStaleJobs(daysOld: number = 30): number {
+export function countStaleJobs(daysOld: number = 30, keepScoreAbove: number = 60): number {
   const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000).toISOString();
   const row = db.prepare(`
     SELECT COUNT(*) as count FROM jobs
-    WHERE status IN ('NEW', 'PENDING') AND date_found < ?
-  `).get(cutoff) as { count: number };
+    WHERE status IN ('NEW', 'PENDING')
+      AND date_found < ?
+      AND COALESCE(score, 0) < ?
+      AND COALESCE(ai_suggestion, '') NOT IN ('STRONG_FIT', 'GOOD_FIT')
+  `).get(cutoff, keepScoreAbove) as { count: number };
   return row.count;
 }
 

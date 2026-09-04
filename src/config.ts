@@ -61,6 +61,12 @@ export const filterConfig: FilterConfig = {
     /analytics engineer/i,
     /data analyst/i,
     /\bllm engineer/i,
+    // AI safety / research roles (Anthropic Fellows, METR, FAR AI et al.)
+    /research scientist/i,
+    /member of technical staff/i,
+    /alignment (engineer|scientist|research)/i,
+    /\bevals? engineer/i,
+    /red team/i,
     // Management
     /engineering manager/i,
     /eng\.?\s*manager/i,
@@ -185,8 +191,10 @@ export const filterConfig: FilterConfig = {
     /united states/i,
   ],
   excludeTitles: [
-    // Too senior
-    /\bstaff\b/i,
+    // Too senior. Note "staff" must be qualified: "Member of Technical Staff" is
+    // the standard IC title at Anthropic, OpenAI and Perplexity, and a bare
+    // /\bstaff\b/ was excluding that entire category.
+    /\bstaff (engineer|software engineer|developer|scientist)\b/i,
     /principal/i,
     // Too junior
     /\bintern\b/i,
@@ -261,6 +269,14 @@ export const filterConfig: FilterConfig = {
     /\bllm/i,
     /pytorch/i,
     /tensorflow/i,
+    // AI safety signals. Weighted because 7 of 12 roles on Tim's own shortlist
+    // are AI-native companies, and his Fellows application is in this space.
+    /ai safety/i,
+    /alignment/i,
+    /interpretability/i,
+    /\bevals?\b/i,
+    /red team/i,
+    /frontier model/i,
   ],
 };
 
