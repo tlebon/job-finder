@@ -51,6 +51,17 @@ export interface FilterConfig {
   boostKeywords: RegExp[];
 }
 
+/**
+ * How far a reach a job is, kept separate from how much Tim wants it.
+ *
+ * Collapsing the two is what made a single verdict uninformative: a moonshot
+ * and a poor match both came out MAYBE, and nothing downstream could tell them
+ * apart. Held separately, a dream role at a famous lab can be STRONG_FIT and
+ * moonshot at once - which is the useful thing to know, and lets him spend a
+ * fixed appetite for long shots deliberately rather than by accident.
+ */
+export type Reach = 'realistic' | 'stretch' | 'moonshot';
+
 export interface FilterResult {
   passed: boolean;
   score: number;

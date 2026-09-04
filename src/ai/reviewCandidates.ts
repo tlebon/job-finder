@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config.js';
-import type { Job } from '../types.js';
+import type { Job, Reach } from '../types.js';
 import type { AIReviewResult, AISuggestion } from '../storage/db.js';
 import { excerptForReview } from '../utils/jobText.js';
 
@@ -20,6 +20,7 @@ export interface Profile {
 interface BatchReviewResult {
   jobId: string;
   suggestion: AISuggestion;
+  reach?: Reach;
   reasoning: string;
   scoreAdjustment: number;
 }
@@ -85,25 +86,45 @@ What does NOT rule a job out:
 - Being a famous or highly competitive employer. Aiming high is their decision.
 - Being outside their previous industry, if the engineering fits.
 
-Categorize each job as:
+Answer TWO SEPARATE questions about each job. Do not blend them - collapsing
+them is what makes a verdict useless, because a moonshot and a poor match come
+out looking identical.
+
+FIRST, how much would they want it?
 - STRONG_FIT: They would want to apply. Either it is squarely the work they are
-  moving toward, or it is a strong match at a company that fits their values.
+  moving toward, or a strong match at a company that fits their values.
 - GOOD_FIT: Worth applying to. Real overlap, some compromise.
-- MAYBE: Genuinely unclear, or a big stretch that is still plausibly worth a shot.
+- MAYBE: Genuinely unclear.
 - AUTO_DISMISS: One of the ruling-out conditions above actually applies. Not
   "they might not get it" - only "they would not want it or could not take it".
+
+SECOND, and independently, how far a reach is it?
+- realistic: their background plausibly clears the bar as written.
+- stretch: they would be a credible but not obvious candidate. Missing some of
+  the stated experience, or a step up in scope.
+- moonshot: they would be a long shot. Far more experience asked for than they
+  have, a research record they lack, or an extremely competitive employer.
+
+Reach is about the odds, not the appeal. A dream job at a famous lab is
+STRONG_FIT and moonshot at the same time, and that combination is useful to
+know - it is not a reason to downgrade either answer. Judge reach against the
+posting's stated requirements, not against how well known the company is,
+except where competition genuinely dominates.
 
 OUTPUT FORMAT (JSON array, one object per job, in order):
 [
   {
     "jobId": "the job ID",
     "suggestion": "STRONG_FIT|GOOD_FIT|MAYBE|AUTO_DISMISS",
+    "reach": "realistic|stretch|moonshot",
     "reasoning": "1-2 sentence explanation",
     "scoreAdjustment": number (-50 to +50)
   }
 ]
 
-Score adjustments:
+Score adjustments, from the first question only. Reach must not affect them -
+it is recorded separately so the candidate can decide his own appetite for a
+long shot, and folding it in here would take that decision away from him.
 - STRONG_FIT: +30 to +50
 - GOOD_FIT: +10 to +25
 - MAYBE: -10 to +10
@@ -160,6 +181,9 @@ another and their order carries no meaning.`;
     // Validate and fix results
     return results.map((result, i) => ({
       jobId: result.jobId || jobs[i]?.id || '',
+      reach: (['realistic', 'stretch', 'moonshot'] as const).includes(result.reach as Reach)
+        ? (result.reach as Reach)
+        : undefined,
       suggestion: (['STRONG_FIT', 'GOOD_FIT', 'MAYBE', 'AUTO_DISMISS'].includes(result.suggestion)
         ? result.suggestion
         : 'MAYBE') as AISuggestion,

@@ -59,6 +59,13 @@ function getDb(): Database.Database {
   } catch {
     // Column already exists
   }
+  // How far a reach a job is, recorded apart from how much he wants it.
+  try {
+    _db.exec(`ALTER TABLE jobs ADD COLUMN ai_reach TEXT`);
+  } catch {
+    // Column already exists
+  }
+
   // The trained model's probability for this posting.
   try {
     _db.exec(`ALTER TABLE jobs ADD COLUMN model_score REAL`);

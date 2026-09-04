@@ -2,7 +2,7 @@ import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
-import type { Job, RawJob } from '../types.js';
+import type { Job, RawJob, Reach } from '../types.js';
 import { cleanJobDescription } from '../utils/jobText.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -48,6 +48,15 @@ try {
   db.exec(`ALTER TABLE jobs ADD COLUMN ai_reasoning TEXT`);
 } catch {
   // Columns already exist
+}
+
+// How far a reach a job is, recorded apart from how much he wants it. Score is
+// deliberately unaffected: folding the odds into the ranking would decide his
+// appetite for a long shot on his behalf.
+try {
+  db.exec(`ALTER TABLE jobs ADD COLUMN ai_reach TEXT`);
+} catch {
+  // Column already exists
 }
 
 // The trained model's probability for this posting. See src/model/score.ts.
@@ -284,6 +293,8 @@ export type AISuggestion = 'STRONG_FIT' | 'GOOD_FIT' | 'MAYBE' | 'AUTO_DISMISS';
 export interface AIReviewResult {
   jobId: string;
   suggestion: AISuggestion;
+  /** How far a reach, judged separately from how much he wants it. */
+  reach?: Reach;
   reasoning: string;
   scoreAdjustment: number;
 }
@@ -293,12 +304,14 @@ export function updateJobWithAIReview(result: AIReviewResult): void {
     UPDATE jobs
     SET ai_reviewed = 1,
         ai_suggestion = ?,
+        ai_reach = ?,
         ai_reasoning = ?,
         ai_score_adjustment = ?,
         score = score + ? - COALESCE(ai_score_adjustment, 0)
     WHERE id = ?
   `).run(
     result.suggestion,
+    result.reach ?? null,
     result.reasoning,
     result.scoreAdjustment,
     result.scoreAdjustment,

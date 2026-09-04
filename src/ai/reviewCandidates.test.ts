@@ -33,3 +33,27 @@ test('a plus inside reasoning text is not mangled', () => {
   assert.equal(parsed[0].reasoning, 'React + TypeScript, 5+ years');
   assert.equal(parsed[0].scoreAdjustment, 10);
 });
+
+// --- desire and reach are separate answers ----------------------------------
+// Collapsing them made a verdict uninformative: a moonshot and a poor match both
+// came out MAYBE and nothing downstream could tell them apart.
+
+test('a reach value is kept only when it is one of the three levels', () => {
+  const valid = ['realistic', 'stretch', 'moonshot'];
+  const keep = (r: unknown) => (valid.includes(r as string) ? r : undefined);
+
+  assert.equal(keep('moonshot'), 'moonshot');
+  assert.equal(keep('realistic'), 'realistic');
+  // A model that invents a level must not have it written to the database,
+  // where it would quietly break any filter reading the column.
+  assert.equal(keep('very hard'), undefined);
+  assert.equal(keep(undefined), undefined);
+  assert.equal(keep(''), undefined);
+});
+
+test('reach parses alongside a signed adjustment', () => {
+  const raw = '[{"jobId":"a","suggestion":"STRONG_FIT","reach":"moonshot","reasoning":"x","scoreAdjustment": +40}]';
+  const parsed = JSON.parse(normalize(raw));
+  assert.equal(parsed[0].reach, 'moonshot');
+  assert.equal(parsed[0].scoreAdjustment, 40);
+});
