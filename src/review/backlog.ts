@@ -78,7 +78,7 @@ export async function reviewAndPersist(
     const results = await reviewCandidates(chunk, profile);
 
     for (const result of results) {
-      if (result.suggestion === 'AUTO_DISMISS') updateJobStatus(result.jobId, 'NOT_FIT');
+      if (result.suggestion === 'AUTO_DISMISS') updateJobStatus(result.jobId, 'NOT_FIT', 'ai');
       updateJobWithAIReview(result);
       tally[result.suggestion] = (tally[result.suggestion] ?? 0) + 1;
     }

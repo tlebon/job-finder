@@ -143,12 +143,12 @@ async function main() {
   let restored = 0;
   for (const result of results) {
     if (result.suggestion === 'AUTO_DISMISS') {
-      updateJobStatus(result.jobId, 'NOT_FIT');
+      updateJobStatus(result.jobId, 'NOT_FIT', 'ai');
       autoDismissed++;
     } else if (before.get(result.jobId) === 'NOT_FIT') {
       // Previously dismissed on a boilerplate-only read; the fresh verdict
       // disagrees, so put it back in front of the user.
-      updateJobStatus(result.jobId, 'PENDING');
+      updateJobStatus(result.jobId, 'PENDING', 'ai');
       restored++;
     }
     updateJobWithAIReview(result);

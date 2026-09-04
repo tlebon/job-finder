@@ -24,7 +24,19 @@ interface BatchReviewResult {
   scoreAdjustment: number;
 }
 
-const BATCH_SIZE = 5; // Process 5 jobs per API call for efficiency
+/**
+ * Two jobs per call, not five.
+ *
+ * Measured by src/eval-reviewer-consistency.ts, the reviewer agreed with its own
+ * earlier verdict on 50% of 115 re-reviews, and 20% crossed the good/not-good
+ * line the pipeline turns on. Of ten jobs first called STRONG_FIT, zero came
+ * back STRONG_FIT. Batching five to a prompt is one cause: a verdict is
+ * conditioned on the four arbitrary neighbours a job landed with, which is pure
+ * noise with respect to the job. Smaller batches cost more calls and are worth
+ * it, because every downstream number is measured against these labels and
+ * label noise drags all of them toward chance.
+ */
+const BATCH_SIZE = 2;
 
 async function reviewBatch(jobs: Job[], profile: Profile): Promise<BatchReviewResult[]> {
   const jobDescriptions = jobs.map((job, i) => `
@@ -82,6 +94,9 @@ Be conservative with AUTO_DISMISS - only use it for obvious mismatches. When in 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 2000,
+      // Was unset, so it ran at the default 1.0 and resampled a fresh opinion
+      // every time. This is a classification, not a creative task.
+      temperature: 0,
       messages: [{ role: 'user', content: prompt }],
     });
 

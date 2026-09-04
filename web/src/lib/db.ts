@@ -59,6 +59,23 @@ function getDb(): Database.Database {
   } catch {
     // Column already exists
   }
+  // Who set a status. A dismissal Tim made by hand and one the reviewer made
+  // automatically both wrote NOT_FIT and were indistinguishable afterwards, so
+  // every human judgement this app collected was discarded on write. Those are
+  // the only ground-truth labels here - the reviewer agrees with itself on just
+  // 50% of re-reviews, so its own verdicts cannot serve as truth.
+  // Separate try blocks: one failure inside a shared block skips the rest.
+  try {
+    _db.exec(`ALTER TABLE jobs ADD COLUMN status_source TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    _db.exec(`ALTER TABLE jobs ADD COLUMN status_changed_at TEXT`);
+  } catch {
+    // Column already exists
+  }
+
   try {
     _db.exec(`ALTER TABLE jobs ADD COLUMN last_url_check TEXT`);
   } catch {
@@ -275,8 +292,14 @@ export function updateJobCoverLetter(id: string, coverLetter: string): boolean {
   return result.changes > 0;
 }
 
-export function updateJobStatus(id: string, status: string): boolean {
-  const result = db.prepare('UPDATE jobs SET status = ? WHERE id = ?').run(status, id);
+export type StatusSource = 'user' | 'ai' | 'system';
+
+export function updateJobStatus(id: string, status: string, source: StatusSource = 'user'): boolean {
+  // 'user' by default: this path is reached from the UI, so it is Tim deciding.
+  // That makes these rows the only ground-truth labels the project has - see the
+  // note on StatusSource in src/storage/db.ts.
+  const result = db.prepare('UPDATE jobs SET status = ?, status_source = ?, status_changed_at = ? WHERE id = ?')
+    .run(status, source, new Date().toISOString(), id);
   return result.changes > 0;
 }
 
@@ -412,7 +435,7 @@ export function archiveStaleJobs(daysOld: number = 30, keepScoreAbove: number = 
   // the set converges over a few runs rather than dumping good jobs on day one.
   const result = db.prepare(`
     UPDATE jobs
-    SET status = 'ARCHIVED', updated_at = ?
+    SET status = 'ARCHIVED', status_source = 'system', updated_at = ?
     WHERE status IN ('NEW', 'PENDING')
       AND date_found < ?
       AND NOT (

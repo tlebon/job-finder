@@ -50,6 +50,27 @@ try {
   // Columns already exist
 }
 
+// Record who set a status (migration).
+//
+// A dismissal Tim made by hand and one the reviewer made automatically both
+// wrote NOT_FIT and were indistinguishable afterwards, so every human judgement
+// this app collected was discarded on write. Existing rows are left NULL rather
+// than guessed at - the information is genuinely gone for those, and inventing
+// it would poison the only labels worth trusting.
+//
+// Each ALTER gets its own try: one failing statement inside a shared block
+// skips the ones after it, which is how a migration silently half-applies.
+try {
+  db.exec(`ALTER TABLE jobs ADD COLUMN status_source TEXT`);
+} catch {
+  // Column already exists
+}
+try {
+  db.exec(`ALTER TABLE jobs ADD COLUMN status_changed_at TEXT`);
+} catch {
+  // Column already exists
+}
+
 // Add job cleanup tracking columns (migration).
 // No DEFAULT CURRENT_TIMESTAMP here: SQLite rejects ADD COLUMN with a
 // non-constant default, so the column is backfilled below instead.
@@ -278,8 +299,21 @@ export function updateJobCategories(jobId: string, categories: string[]): void {
   db.prepare('UPDATE jobs SET categories = ? WHERE id = ?').run(JSON.stringify(categories), jobId);
 }
 
-export function updateJobStatus(jobId: string, status: string): void {
-  db.prepare('UPDATE jobs SET status = ? WHERE id = ?').run(status, jobId);
+/**
+ * Who decided this status.
+ *
+ * 'user' is the only one of these that is ground truth. Until now a dismissal
+ * Tim made by hand and one the reviewer made automatically both wrote NOT_FIT
+ * and became indistinguishable, so thousands of real human judgements were
+ * discarded on write. Those are the only labels that can tell us the reviewer
+ * is wrong rather than merely inconsistent, which makes them the most valuable
+ * data this project produces.
+ */
+export type StatusSource = 'user' | 'ai' | 'system';
+
+export function updateJobStatus(jobId: string, status: string, source: StatusSource = 'user'): void {
+  db.prepare('UPDATE jobs SET status = ?, status_source = ?, status_changed_at = ? WHERE id = ?')
+    .run(status, source, new Date().toISOString(), jobId);
 }
 
 export function getJobById(jobId: string): Job | null {

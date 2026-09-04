@@ -210,7 +210,8 @@ export async function POST() {
           else if (result.suggestion === 'MAYBE') summaryCounts.maybe++;
           else if (result.suggestion === 'AUTO_DISMISS') {
             summaryCounts.autoDismiss++;
-            db.prepare('UPDATE jobs SET status = ? WHERE id = ?').run('NOT_FIT', result.jobId);
+            db.prepare('UPDATE jobs SET status = ?, status_source = ?, status_changed_at = ? WHERE id = ?')
+              .run('NOT_FIT', 'ai', new Date().toISOString(), result.jobId);
           }
         }
 

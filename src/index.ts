@@ -130,7 +130,7 @@ async function main() {
       let autoDismissed = 0;
       for (const result of reviewResults) {
         if (result.suggestion === 'AUTO_DISMISS') {
-          updateJobStatus(result.jobId, 'NOT_FIT');
+          updateJobStatus(result.jobId, 'NOT_FIT', 'ai');
           autoDismissed++;
         }
         updateJobWithAIReview(result);
