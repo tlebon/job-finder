@@ -5,6 +5,15 @@ import { getBlocklist } from '../storage/db.js';
 /** Bounded so a long job description cannot run the tech score away. */
 const TECH_CATEGORY_CAP = 4;
 const TECH_CATEGORY_POINTS = 8;
+/** Boosts were left uncapped when tech was capped, so a keyword-stuffed
+ *  description still outscored a terse one by ~23 points. Same bug, one line
+ *  down; caught by the scoring-shape test rather than by inspection. */
+const BOOST_CAP = 5;
+const BOOST_POINTS = 3;
+/** Domain signal is close to binary - a company is in the privacy space or it
+ *  is not - so nine separate matches should not pay nine times. */
+const DOMAIN_CAP = 2;
+const DOMAIN_POINTS = 8;
 
 function matchesAny(text: string, patterns: RegExp[]): string[] {
   const matches: string[] = [];
@@ -172,7 +181,7 @@ export function filterJob(job: RawJob): FilterResult {
   const companyTypeMatches = matchesAny(fullText, filterConfig.includeCompanyTypes);
   if (companyTypeMatches.length > 0) {
     matchedCriteria.push(`Domain: ${companyTypeMatches.join(', ')}`);
-    score += companyTypeMatches.length * 8;
+    score += Math.min(companyTypeMatches.length, DOMAIN_CAP) * DOMAIN_POINTS;
   }
 
   // Check location
@@ -192,7 +201,7 @@ export function filterJob(job: RawJob): FilterResult {
   const boostMatches = matchesAny(fullText, filterConfig.boostKeywords);
   if (boostMatches.length > 0) {
     matchedCriteria.push(`Boost: ${boostMatches.join(', ')}`);
-    score += boostMatches.length * 3;
+    score += Math.min(boostMatches.length, BOOST_CAP) * BOOST_POINTS;
   }
 
   // Pass criteria (any of these):
