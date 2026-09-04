@@ -68,9 +68,17 @@ test('Member of Technical Staff is not excluded as too senior', () => {
   );
 });
 
-test('Staff Software Engineer is still excluded as too senior', () => {
-  const r = filterJob(job({ title: 'Staff Software Engineer' }));
-  assert.ok(r.matchedCriteria.some(c => c.includes('EXCLUDED')));
+// Sampling what this rule rejected found 33% good, including three Anthropic
+// Staff Software Engineer roles. Tim was an EM at Wire with 6+ years, and
+// Anthropic is a company he wants surfaced whether or not a role is a stretch.
+test('Staff and Principal titles are not excluded as too senior', () => {
+  for (const title of ['Staff Software Engineer, Claude Code', 'Principal Research Engineer, AI Safety']) {
+    const r = filterJob(job({ title, description: 'Python, PyTorch and LLM work.' }));
+    assert.ok(
+      !r.matchedCriteria.some(c => c.startsWith('EXCLUDED')),
+      `"${title}" should not be excluded: ${r.matchedCriteria.join(' | ')}`
+    );
+  }
 });
 
 // --- company boilerplate must not pass a role ------------------------------
@@ -127,11 +135,11 @@ test('bare European city names match the location gate', () => {
   }
 });
 
-test('locations outside Europe and the USA are still rejected', () => {
+test('locations outside Europe and the USA earn no proximity bonus', () => {
   for (const location of ['Beijing, China', 'Tel Aviv, Israel', 'Singapore']) {
     assert.ok(
       !filterConfig.includeLocations.some(p => p.test(location)),
-      `"${location}" should not match`
+      `"${location}" should not match includeLocations`
     );
   }
 });
@@ -271,11 +279,20 @@ test('a genuine privacy company still earns the domain bonus', () => {
 // a match anywhere in the string also passed roles in Tokyo, Bengaluru and Dubai
 // that happened to say "remote".
 
-test('remote roles outside Europe and the USA are rejected', () => {
-  for (const location of ['Remote - Tokyo, Japan', 'Bengaluru, India (Remote)', 'Dubai, UAE - Remote', 'Remote, Toronto, Canada']) {
+// Was an exclusion, and it cost a STRONG_FIT at a Korean AI-safety lab. Tim
+// will move anywhere for the right role with relocation support, so distance is
+// a flag he can toggle in the UI, not a rejection made on his behalf.
+test('roles outside Europe and the USA pass, flagged for relocation', () => {
+  for (const location of ['Remote - Tokyo, Japan', 'Bengaluru, India (Remote)', 'Seoul, South Korea', 'Toronto, Canada']) {
     const r = filterJob(job({ title: 'Machine Learning Engineer', location, description: 'PyTorch and LLM work.' }));
-    assert.equal(r.passed, false, `"${location}" should be rejected: ${r.matchedCriteria.join(' | ')}`);
+    assert.equal(r.passed, true, `"${location}" should pass: ${r.matchedCriteria.join(' | ')}`);
+    assert.equal(r.requiresRelocation, true, `"${location}" should be flagged for relocation`);
   }
+});
+
+test('a Berlin role is not flagged for relocation', () => {
+  const r = filterJob(job({ title: 'Machine Learning Engineer', location: 'Berlin, Germany', description: 'PyTorch work.' }));
+  assert.notEqual(r.requiresRelocation, true);
 });
 
 test('genuinely remote roles in range still pass', () => {
@@ -320,4 +337,29 @@ test('categories are reported from the whole posting', () => {
   assert.ok(r.categories.includes('ml'), `categories: ${r.categories.join(',')}`);
   assert.ok(r.categories.includes('llm'));
   assert.ok(r.categories.includes('frontend'));
+});
+
+// A US on-site role was cleared of needing relocation because its description
+// mentioned "distributed systems" - the whole description was searched for
+// /\bdistributed\b/. "global customers" did the same via /\bglobal\b/.
+test('technical vocabulary does not clear a US role of relocation', () => {
+  for (const description of [
+    'You will build distributed systems at scale in Python.',
+    'We serve global customers across many markets.',
+    'Own services end to end for a worldwide user base.',
+  ]) {
+    const r = filterJob(job({ title: 'Machine Learning Engineer', location: 'San Francisco, CA', description }));
+    assert.equal(r.requiresRelocation, true, `should still need relocation: "${description}"`);
+  }
+});
+
+test('a genuinely remote US role is not flagged for relocation', () => {
+  for (const [location, description] of [
+    ['Remote (US)', 'Build systems in Python.'],
+    ['San Francisco, CA', 'This is a fully remote position.'],
+    ['New York, NY', 'We are remote-first.'],
+  ] as const) {
+    const r = filterJob(job({ title: 'Machine Learning Engineer', location, description }));
+    assert.notEqual(r.requiresRelocation, true, `should not need relocation: "${location}" / "${description}"`);
+  }
 });

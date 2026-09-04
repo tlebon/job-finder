@@ -152,13 +152,18 @@ export const filterConfig: FilterConfig = {
     /\bduckduckgo\b/i,
   ],
   /**
-   * Checked before includeLocations. The remote terms below are permissive by
-   * design - "Remote" alone should pass - but they also passed roles in Tokyo,
-   * Bengaluru and Dubai that happened to say "remote", because a match anywhere
-   * in the location string was enough. Naming what is out of range first closes
-   * that, without narrowing what "remote" means for everyone else.
+   * Far from Berlin - flagged for relocation, NOT rejected.
+   *
+   * This began as an exclusion, on the reading that "Europe or the USA make the
+   * most sense". It cost a STRONG_FIT at a Korean AI-safety lab, and Tim's
+   * actual position is that he would move anywhere for the right role with
+   * relocation support. So these now set requiresRelocation, which the
+   * candidates page already has a toggle for, and he decides.
+   *
+   * Kept as a named list rather than inferred, because a job whose location is
+   * simply unparseable should not be presented as an intercontinental move.
    */
-  excludeLocations: [
+  farLocations: [
     /\b(china|japan|korea|singapore|hong kong|taiwan|thailand|vietnam|malaysia|philippines|indonesia)\b/i,
     /\b(india|pakistan|bangladesh|sri lanka)\b/i,
     /\b(bengaluru|bangalore|mumbai|delhi|hyderabad|pune|chennai|noida|gurgaon|gurugram)\b/i,
@@ -206,11 +211,14 @@ export const filterConfig: FilterConfig = {
     /remote/i, /distributed/i, /worldwide/i, /global/i, /anywhere/i, /international/i,
   ],
   excludeTitles: [
-    // Too senior. Note "staff" must be qualified: "Member of Technical Staff" is
-    // the standard IC title at Anthropic, OpenAI and Perplexity, and a bare
-    // /\bstaff\b/ was excluding that entire category.
-    /\bstaff (engineer|software engineer|developer|scientist)\b/i,
-    /principal/i,
+    // Staff and Principal are NOT excluded. Sampling what these rules rejected,
+    // /staff (engineer|...)/ threw away 33% good - including three Anthropic
+    // Staff Software Engineer roles - and /principal/ threw away a Staff /
+    // Principal Research Engineer in AI Safety. Tim was an Engineering Manager
+    // at Wire with 6+ years, so staff-level IC is a legitimate target, and
+    // Anthropic is a company he wants surfaced whether or not any given role is
+    // a stretch. Aiming high is his call to make, not the filter's.
+    //
     // Too junior
     /\bintern\b/i,
     /\binternship\b/i,

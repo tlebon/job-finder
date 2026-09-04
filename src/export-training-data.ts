@@ -35,10 +35,14 @@ const rows = db.prepare(`
 `).all() as Row[];
 
 for (const r of rows) {
-  // Trimmed to the part that describes the role. Full descriptions run to a p90
-  // of ~9,900 characters, which makes the export unwieldy to move and adds
-  // mostly company boilerplate.
-  const text = excerptForReview(r.description, 2000);
+  // Exactly the string the reviewer was shown - same function, same default
+  // limit of 6,000. This was 2,000, which is not a prefix of the 6,000 version
+  // but a different span: past the limit excerptForReview jumps to the
+  // requirements marker and takes a window from there, so a shorter limit fires
+  // that branch for far more documents and slices them differently. The model
+  // was being asked to predict a label determined partly by text it could not
+  // see. Truncate at feature-extraction time instead, where it can be ablated.
+  const text = excerptForReview(r.description);
 
   process.stdout.write(JSON.stringify({
     title: r.title,
