@@ -81,39 +81,57 @@ export const filterConfig: FilterConfig = {
     /solutions architect/i,
     /sales engineer/i,
   ],
-  includeTech: [
-    /react/i,
-    /typescript/i,
-    /vue/i,
-    /javascript/i,
-    // Data science / AI
-    /python/i,
-    /pytorch/i,
-    /tensorflow/i,
-    /scikit-?learn/i,
-    /pandas/i,
-    /\bnumpy\b/i,
-    /\bsql\b/i,
-    /\bllm/i,
-    /\bnlp\b/i,
-    /hugging ?face/i,
-    /langchain/i,
-    // Blockchain/Web3
-    /blockchain/i,
-    /web3/i,
-    /crypto(?!graphy)/i, // crypto but not cryptography alone
-    /defi/i,
-    /\bnft\b/i,
-    /smart contract/i,
-    /solidity/i,
-    /ethereum/i,
-    /tezos/i,
-  ],
+  // Tech is grouped into categories so scoring counts distinct *signals* rather
+  // than raw keyword hits. Matching react + typescript + redux is one signal
+  // ("modern frontend"), not three, and grouping stops verbose job descriptions
+  // outscoring terse ones for the same role.
+  //
+  // Categories double as the UI filter vocabulary - one list, not two.
+  techCategories: {
+    // Pivot target: applied AI / ML engineering (per job-overview.md positioning)
+    ml: [
+      /pytorch/i, /tensorflow/i, /scikit-?learn/i, /\bkeras\b/i,
+      /machine learning/i, /deep learning/i, /neural network/i,
+      /\bcnn\b/i, /transformers?\b/i, /model training/i, /fine-?tun/i,
+      /quantization/i, /\bgpu\b/i, /\bmlops\b/i,
+    ],
+    llm: [
+      /\bllm/i, /large language model/i, /\brag\b/i, /retrieval.augmented/i,
+      /langchain/i, /hugging ?face/i, /\bollama\b/i, /prompt engineering/i,
+      /embeddings?\b/i, /vector (search|database|store)/i, /\bchromadb\b/i,
+      /\bevals?\b/i, /inference/i, /openai|anthropic|claude api/i,
+    ],
+    data: [
+      /\bpandas\b/i, /\bnumpy\b/i, /\bsql\b/i, /\betl\b/i,
+      /data pipeline/i, /\bairflow\b/i, /\bdbt\b/i, /recommendation system/i,
+    ],
+    frontend: [
+      /\breact\b/i, /typescript/i, /javascript/i, /\bvue\b/i,
+      /svelte(kit)?/i, /next\.?js/i, /\bredux\b/i, /\bastro\b/i, /electron/i,
+    ],
+    backend: [
+      /node(\.?js)?\b/i, /nest(\.?js)?\b/i, /express/i, /fastapi/i,
+      /graphql/i, /postgres(ql)?/i, /\bprisma\b/i, /supabase/i, /\bpython\b/i,
+    ],
+    infra: [
+      /docker/i, /kubernetes/i, /\bci\/cd\b/i, /terraform/i, /\baws\b/i,
+    ],
+    web3: [
+      /blockchain/i, /web3/i, /\bcrypto\b(?!graph)/i, /\bdefi\b/i, /\bnft\b/i,
+      /smart contract/i, /solidity/i, /ethereum/i, /tezos/i,
+    ],
+    privacy: [
+      // 'end-to-end' alone matches 'end-to-end ownership' in ~29% of job ads,
+      // so it must be qualified by encryption to mean anything here.
+      /encrypt/i, /\be2e\b/i, /end-to-end encrypt/i, /\bmls\b/i, /secure messaging/i,
+    ],
+  },
+
   includeCompanyTypes: [
     // Encrypted messaging / privacy
     /encrypt/i,
     /\be2e\b/i,
-    /end-to-end/i,
+    /end-to-end encrypt/i,
     /privacy/i,
     /secure messaging/i,
     /\bsignal\b/i,
@@ -245,6 +263,16 @@ export const filterConfig: FilterConfig = {
     /tensorflow/i,
   ],
 };
+
+// Flattened view of techCategories, for callers that just need "did any tech match".
+export const allTechPatterns: RegExp[] = Object.values(filterConfig.techCategories).flat();
+
+/** Which tech categories a job's text matches. Used for scoring and for UI filters. */
+export function matchedTechCategories(text: string): string[] {
+  return Object.entries(filterConfig.techCategories)
+    .filter(([, patterns]) => patterns.some(p => p.test(text)))
+    .map(([name]) => name);
+}
 
 // Job source URLs
 export const jobSources = {

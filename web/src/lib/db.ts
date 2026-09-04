@@ -69,6 +69,11 @@ function getDb(): Database.Database {
   } catch {
     // Column already exists
   }
+  try {
+    _db.exec(`ALTER TABLE jobs ADD COLUMN categories TEXT`);
+  } catch {
+    // Column already exists
+  }
 
   // Set updated_at = created_at for existing jobs
   try {
@@ -184,6 +189,8 @@ export interface Job {
   updatedAt?: string;
   lastUrlCheck?: string;
   checkFailures?: number;
+  /** Tech categories matched at filter time. Drives the UI filter chips. */
+  categories?: string[];
 }
 
 interface JobRow {
@@ -206,6 +213,7 @@ interface JobRow {
   updated_at: string | null;
   last_url_check: string | null;
   check_failures: number | null;
+  categories: string | null;
 }
 
 function rowToJob(row: JobRow): Job {
@@ -229,6 +237,7 @@ function rowToJob(row: JobRow): Job {
     updatedAt: row.updated_at || undefined,
     lastUrlCheck: row.last_url_check || undefined,
     checkFailures: row.check_failures || 0,
+    categories: row.categories ? JSON.parse(row.categories) : [],
   };
 }
 

@@ -1,91 +1,106 @@
+#!/usr/bin/env tsx
+/**
+ * Recalculate scores and tech categories for stored jobs.
+ *
+ * Delegates to filterJob() rather than reimplementing the scoring maths. An
+ * earlier version duplicated it, and the two silently diverged the moment the
+ * scorer changed.
+ *
+ * Jobs that no longer pass the filter are reported but not zeroed: a config
+ * change should not silently wipe the score of something already actioned.
+ *
+ * Usage:
+ *   npx tsx src/recalculate-scores.ts --dry-run
+ *   npx tsx src/recalculate-scores.ts --confirm
+ */
+
+import { config } from 'dotenv';
 import { db } from './storage/db.js';
-import { filterConfig } from './config.js';
+import { filterJob } from './filters/jobFilter.js';
+import type { RawJob } from './types.js';
+
+config({ quiet: true });
 
 interface JobRow {
   id: string;
   title: string;
-  description: string;
+  description: string | null;
   location: string;
   company: string;
+  url: string;
+  source: string;
   score: number | null;
+  status: string;
 }
 
-function matchesAny(text: string, patterns: RegExp[]): string[] {
-  const matches: string[] = [];
-  for (const pattern of patterns) {
-    if (pattern.test(text)) {
-      matches.push(pattern.source);
-    }
-  }
-  return matches;
-}
+function main(): void {
+  const args = process.argv.slice(2);
+  const dryRun = args.includes('--dry-run');
+  const confirm = args.includes('--confirm');
 
-function calculateScore(job: JobRow): number {
-  const { title, description, location, company } = job;
-  const fullText = `${title} ${description} ${company}`;
-  let score = 0;
-
-  // Check title matches
-  const titleMatches = matchesAny(title, filterConfig.includeTitles);
-  score += titleMatches.length * 10;
-
-  // Check tech in description
-  const techMatches = matchesAny(fullText, filterConfig.includeTech);
-  score += techMatches.length * 5;
-
-  // Check company type (privacy, blockchain, etc.)
-  const companyTypeMatches = matchesAny(fullText, filterConfig.includeCompanyTypes);
-  score += companyTypeMatches.length * 8;
-
-  // Check location
-  const locationMatches = matchesAny(location, filterConfig.includeLocations);
-  if (locationMatches.length > 0) {
-    score += 5;
+  if (!dryRun && !confirm) {
+    console.error('Specify --dry-run or --confirm');
+    process.exit(1);
   }
 
-  // Boost Berlin jobs
-  if (/berlin/i.test(location)) {
-    score += 15;
-  }
+  const jobs = db.prepare(`
+    SELECT id, title, description, location, company, url, source, score, status
+    FROM jobs
+    WHERE status NOT IN ('ARCHIVED', 'DEAD', 'EXPIRED')
+  `).all() as JobRow[];
 
-  // Apply boost keywords
-  const boostMatches = matchesAny(fullText, filterConfig.boostKeywords);
-  score += boostMatches.length * 3;
+  console.log(`Recalculating ${jobs.length} jobs\n`);
 
-  return score;
-}
+  const update = db.prepare('UPDATE jobs SET score = ?, categories = ? WHERE id = ?');
 
-async function main() {
-  console.log('Recalculating scores for all jobs...\n');
-
-  // Get all jobs
-  const jobs = db.prepare('SELECT id, title, description, location, company, score FROM jobs').all() as JobRow[];
-  console.log(`Found ${jobs.length} jobs to process\n`);
-
-  // Prepare update statement
-  const updateScore = db.prepare('UPDATE jobs SET score = ? WHERE id = ?');
-
-  let updated = 0;
+  let changed = 0;
   let unchanged = 0;
+  let nowExcluded = 0;
+  const deltas: number[] = [];
 
   for (const job of jobs) {
-    const newScore = calculateScore(job);
-    const oldScore = job.score || 0;
+    const result = filterJob({
+      title: job.title,
+      description: job.description || '',
+      company: job.company,
+      location: job.location,
+      url: job.url,
+      source: job.source,
+    } as RawJob);
 
-    if (newScore !== oldScore) {
-      updateScore.run(newScore, job.id);
-      updated++;
-      if (newScore > 0) {
-        console.log(`  ${job.title} @ ${job.company}: ${oldScore} -> ${newScore} pts`);
+    if (!result.passed) {
+      nowExcluded++;
+      continue;
+    }
+
+    const oldScore = job.score || 0;
+    const delta = result.score - oldScore;
+
+    if (delta !== 0) {
+      deltas.push(delta);
+      changed++;
+      if (confirm) {
+        update.run(result.score, JSON.stringify(result.categories), job.id);
       }
     } else {
       unchanged++;
+      if (confirm) {
+        update.run(result.score, JSON.stringify(result.categories), job.id);
+      }
     }
   }
 
-  console.log(`\nDone!`);
-  console.log(`  Updated: ${updated} jobs`);
-  console.log(`  Unchanged: ${unchanged} jobs`);
+  deltas.sort((a, b) => a - b);
+  const median = deltas.length ? deltas[Math.floor(deltas.length / 2)] : 0;
+
+  console.log(`Changed:      ${changed}`);
+  console.log(`Unchanged:    ${unchanged}`);
+  console.log(`No longer passing filter (left untouched): ${nowExcluded}`);
+  if (deltas.length) {
+    console.log(`Score delta:  median ${median}, min ${deltas[0]}, max ${deltas[deltas.length - 1]}`);
+  }
+
+  console.log(dryRun ? '\nDRY RUN: nothing written.\n' : '\nScores and categories updated.\n');
 }
 
-main().catch(console.error);
+main();

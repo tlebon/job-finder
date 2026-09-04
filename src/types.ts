@@ -23,7 +23,9 @@ export interface Job {
   status: 'PENDING' | 'NEW' | 'APPROVED' | 'APPLIED' | 'INTERVIEW' | 'REJECTED' | 'NOT_FIT';
   notes?: string;
   appliedDate?: string;
-  score?: number; // For ranking/boosting
+  score?: number;
+  /** Tech categories matched at filter time. */
+  categories?: string[]; // For ranking/boosting
 }
 
 export interface RawJob {
@@ -37,7 +39,7 @@ export interface RawJob {
 
 export interface FilterConfig {
   includeTitles: RegExp[];
-  includeTech: RegExp[];
+  techCategories: Record<string, RegExp[]>;
   includeCompanyTypes: RegExp[];
   includeLocations: RegExp[];
   excludeTitles: RegExp[];
@@ -48,6 +50,8 @@ export interface FilterResult {
   passed: boolean;
   score: number;
   matchedCriteria: string[];
+  /** Distinct tech categories matched. Doubles as the UI filter vocabulary. */
+  categories: string[];
 }
 
 export interface CoverLetterContext {

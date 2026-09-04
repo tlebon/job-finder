@@ -1,6 +1,10 @@
 import type { RawJob, FilterResult } from '../types.js';
-import { filterConfig } from '../config.js';
+import { filterConfig, matchedTechCategories } from '../config.js';
 import { getBlocklist } from '../storage/db.js';
+
+/** Bounded so a long job description cannot run the tech score away. */
+const TECH_CATEGORY_CAP = 4;
+const TECH_CATEGORY_POINTS = 8;
 
 function matchesAny(text: string, patterns: RegExp[]): string[] {
   const matches: string[] = [];
@@ -85,6 +89,7 @@ export function filterJob(job: RawJob): FilterResult {
       passed: false,
       score: 0,
       matchedCriteria: [`BLOCKED: Company "${blockedCompany.value}"`],
+      categories: [],
     };
   }
 
@@ -98,6 +103,7 @@ export function filterJob(job: RawJob): FilterResult {
       passed: false,
       score: 0,
       matchedCriteria: [`BLOCKED: Keyword "${blockedKeyword.value}"`],
+      categories: [],
     };
   }
 
@@ -111,6 +117,7 @@ export function filterJob(job: RawJob): FilterResult {
       passed: false,
       score: 0,
       matchedCriteria: [`BLOCKED: Pattern "${blockedPattern.value}"`],
+      categories: [],
     };
   }
 
@@ -121,6 +128,7 @@ export function filterJob(job: RawJob): FilterResult {
       passed: false,
       score: 0,
       matchedCriteria: [`EXCLUDED: ${excludedMatches.join(', ')}`],
+      categories: [],
     };
   }
 
@@ -130,6 +138,7 @@ export function filterJob(job: RawJob): FilterResult {
       passed: false,
       score: 0,
       matchedCriteria: ['EXCLUDED: Backend-only role'],
+      categories: [],
     };
   }
 
@@ -139,6 +148,7 @@ export function filterJob(job: RawJob): FilterResult {
       passed: false,
       score: 0,
       matchedCriteria: ['EXCLUDED: US on-site (no remote)'],
+      categories: [],
     };
   }
 
@@ -149,11 +159,13 @@ export function filterJob(job: RawJob): FilterResult {
     score += titleMatches.length * 10;
   }
 
-  // Check tech in description
-  const techMatches = matchesAny(fullText, filterConfig.includeTech);
-  if (techMatches.length > 0) {
-    matchedCriteria.push(`Tech: ${techMatches.join(', ')}`);
-    score += techMatches.length * 5;
+  // Tech is scored by distinct category, not by raw keyword count. Listing
+  // react + typescript + redux is one signal, and counting each hit let verbose
+  // job descriptions outscore terse ones for the same role.
+  const techCats = matchedTechCategories(fullText);
+  if (techCats.length > 0) {
+    matchedCriteria.push(`Tech: ${techCats.join(', ')}`);
+    score += Math.min(techCats.length, TECH_CATEGORY_CAP) * TECH_CATEGORY_POINTS;
   }
 
   // Check company type (privacy, blockchain, etc.)
@@ -189,16 +201,17 @@ export function filterJob(job: RawJob): FilterResult {
   const titleAndLocation = titleMatches.length > 0 && locationMatches.length > 0;
 
   // 2. Domain match (blockchain/privacy company with relevant tech)
-  const domainMatch = techMatches.length > 0 && companyTypeMatches.length > 0 && locationMatches.length > 0;
+  const domainMatch = techCats.length > 0 && companyTypeMatches.length > 0 && locationMatches.length > 0;
 
-  // 3. LENIENT: Strong tech match (2+ tech keywords) + location match
-  // This catches jobs like "Software Engineer" that have React + TypeScript
-  const strongTechMatch = techMatches.length >= 2 && locationMatches.length > 0;
+  // 3. LENIENT: 2+ distinct tech categories + location. Stricter than the old
+  // "2+ keywords" rule, which two synonyms could satisfy.
+  const strongTechMatch = techCats.length >= 2 && locationMatches.length > 0;
 
   return {
     passed: titleAndLocation || domainMatch || strongTechMatch,
     score,
     matchedCriteria,
+    categories: techCats,
   };
 }
 
@@ -209,8 +222,9 @@ export function filterJobs(jobs: RawJob[]): { passed: RawJob[]; filtered: number
   for (const job of jobs) {
     const result = filterJob(job);
     if (result.passed) {
-      // Attach score to job for sorting
-      (job as RawJob & { score: number }).score = result.score;
+      // Attach score and categories to the job for sorting and UI filters
+      (job as RawJob & { score: number; categories: string[] }).score = result.score;
+      (job as RawJob & { score: number; categories: string[] }).categories = result.categories;
       passed.push(job);
     } else {
       filtered++;

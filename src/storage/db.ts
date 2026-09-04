@@ -68,6 +68,13 @@ try {
   // Column already exists
 }
 
+// Tech categories matched at filter time (JSON array). Drives UI filters.
+try {
+  db.exec(`ALTER TABLE jobs ADD COLUMN categories TEXT`);
+} catch {
+  // Column already exists
+}
+
 // Set updated_at = created_at for existing jobs
 try {
   db.exec(`UPDATE jobs SET updated_at = created_at WHERE updated_at IS NULL`);
@@ -174,8 +181,8 @@ export function appendJobs(jobs: Job[]): number {
   }
 
   const insert = db.prepare(`
-    INSERT OR IGNORE INTO jobs (id, date_found, source, company, title, location, url, description, cover_letter, status, score)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO jobs (id, date_found, source, company, title, location, url, description, cover_letter, status, score, categories)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertMany = db.transaction((jobs: Job[]) => {
@@ -192,7 +199,8 @@ export function appendJobs(jobs: Job[]): number {
         job.description?.substring(0, 50000) || '', // Limit description size
         job.coverLetter || null,
         job.status || 'NEW',
-        job.score || 0
+        job.score || 0,
+        job.categories ? JSON.stringify(job.categories) : null
       );
       if (result.changes > 0) count++;
     }
@@ -217,6 +225,7 @@ export function rawJobToJob(rawJob: RawJob, coverLetter?: string, status: Job['s
     coverLetter,
     status,
     score: (rawJob as RawJob & { score?: number }).score,
+    categories: (rawJob as RawJob & { categories?: string[] }).categories,
   };
 }
 
@@ -239,6 +248,10 @@ export function updateJobWithAIReview(result: AIReviewResult): void {
         score = score + ?
     WHERE id = ?
   `).run(result.suggestion, result.reasoning, result.scoreAdjustment, result.jobId);
+}
+
+export function updateJobCategories(jobId: string, categories: string[]): void {
+  db.prepare('UPDATE jobs SET categories = ? WHERE id = ?').run(JSON.stringify(categories), jobId);
 }
 
 export function updateJobStatus(jobId: string, status: string): void {
