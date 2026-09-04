@@ -14,6 +14,12 @@
  * Usage:
  *   npx tsx src/rereview-failed.ts --dry-run
  *   npx tsx src/rereview-failed.ts --confirm [--limit=100] [--max-age-days=30]
+ *   npx tsx src/rereview-failed.ts --confirm --since=2026-09-04 --include-dismissed
+ *
+ * --since re-reviews everything judged in a window, not just outright failures.
+ * Needed because reviews made before the description-truncation fix saw only
+ * company boilerplate, so their verdicts - including AUTO_DISMISS - are unsound.
+ * --include-dismissed pulls back jobs already moved to NOT_FIT by such a review.
  *
  * Only recent jobs are re-reviewed by default: older listings are usually dead,
  * and re-reviewing them spends API credit for no benefit.
@@ -33,15 +39,19 @@ interface Args {
   confirm: boolean;
   limit: number;
   maxAgeDays: number;
+  since?: string;
+  includeDismissed: boolean;
 }
 
 function parseArgs(): Args {
-  const args: Args = { dryRun: false, confirm: false, limit: 100, maxAgeDays: 30 };
+  const args: Args = { dryRun: false, confirm: false, limit: 100, maxAgeDays: 30, includeDismissed: false };
   for (const arg of process.argv.slice(2)) {
     if (arg === '--dry-run') args.dryRun = true;
     if (arg === '--confirm') args.confirm = true;
     if (arg.startsWith('--limit=')) args.limit = parseInt(arg.split('=')[1], 10);
     if (arg.startsWith('--max-age-days=')) args.maxAgeDays = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--since=')) args.since = arg.split('=')[1];
+    if (arg === '--include-dismissed') args.includeDismissed = true;
   }
   return args;
 }
@@ -50,16 +60,25 @@ function cutoffFor(maxAgeDays: number): string {
   return new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000).toISOString();
 }
 
-function getFailedJobs(limit: number, maxAgeDays: number): Job[] {
+function getJobsToReview(args: Args): Job[] {
+  const statuses = args.includeDismissed
+    ? "('NEW', 'PENDING', 'NOT_FIT')"
+    : "('NEW', 'PENDING')";
+
+  // --since: everything reviewed in the window, regardless of verdict.
+  // default: only reviews that outright failed.
+  const where = args.since
+    ? `date_found >= '${args.since}' AND ai_reviewed = 1`
+    : `ai_reasoning = '${FAILED_MARKER}' AND date_found > '${cutoffFor(args.maxAgeDays)}'`;
+
   const rows = db.prepare(`
     SELECT id, date_found, source, company, title, location, url, description, status, score
     FROM jobs
-    WHERE ai_reasoning = ?
-      AND status IN ('NEW', 'PENDING')
-      AND date_found > ?
+    WHERE ${where}
+      AND status IN ${statuses}
     ORDER BY score DESC, date_found DESC
     LIMIT ?
-  `).all(FAILED_MARKER, cutoffFor(maxAgeDays), limit) as Array<Record<string, unknown>>;
+  `).all(args.limit) as Array<Record<string, unknown>>;
 
   return rows.map(r => ({
     id: r.id as string,
@@ -84,20 +103,17 @@ async function main() {
     process.exit(1);
   }
 
-  const cutoff = cutoffFor(args.maxAgeDays);
+  const jobs = getJobsToReview(args);
 
-  const total = db.prepare(
-    `SELECT COUNT(*) c FROM jobs WHERE ai_reasoning = ? AND status IN ('NEW','PENDING')`
-  ).get(FAILED_MARKER) as { c: number };
-
-  const recent = db.prepare(
-    `SELECT COUNT(*) c FROM jobs WHERE ai_reasoning = ? AND status IN ('NEW','PENDING') AND date_found > ?`
-  ).get(FAILED_MARKER, cutoff) as { c: number };
-
-  console.log(`\nJobs with a failed AI review: ${total.c} total, ${recent.c} newer than ${args.maxAgeDays} days`);
-  console.log(`Skipping ${total.c - recent.c} older than ${args.maxAgeDays} days (likely dead listings)`);
-
-  const jobs = getFailedJobs(args.limit, args.maxAgeDays);
+  if (args.since) {
+    console.log(`\nRe-reviewing jobs found since ${args.since}` +
+      (args.includeDismissed ? ' (including auto-dismissed)' : ''));
+  } else {
+    const total = db.prepare(
+      `SELECT COUNT(*) c FROM jobs WHERE ai_reasoning = ? AND status IN ('NEW','PENDING')`
+    ).get(FAILED_MARKER) as { c: number };
+    console.log(`\nJobs with a failed AI review: ${total.c} total`);
+  }
   console.log(`Re-reviewing up to ${args.limit} -> ${jobs.length} selected\n`);
 
   if (jobs.length === 0) {
@@ -120,15 +136,25 @@ async function main() {
     process.exit(1);
   }
 
+  const before = new Map(jobs.map(j => [j.id, j.status]));
   const results = await reviewCandidates(jobs, profile);
 
   let autoDismissed = 0;
+  let restored = 0;
   for (const result of results) {
     if (result.suggestion === 'AUTO_DISMISS') {
       updateJobStatus(result.jobId, 'NOT_FIT');
       autoDismissed++;
+    } else if (before.get(result.jobId) === 'NOT_FIT') {
+      // Previously dismissed on a boilerplate-only read; the fresh verdict
+      // disagrees, so put it back in front of the user.
+      updateJobStatus(result.jobId, 'PENDING');
+      restored++;
     }
     updateJobWithAIReview(result);
+  }
+  if (restored > 0) {
+    console.log(`Restored ${restored} previously auto-dismissed jobs to PENDING.`);
   }
 
   const stillFailed = results.filter(r => r.reasoning === FAILED_MARKER).length;
@@ -137,9 +163,7 @@ async function main() {
   if (stillFailed > 0) {
     console.log(`WARNING: ${stillFailed} still failed - check API credit/key.`);
   }
-  console.log(`Remaining in window: ${(db.prepare(
-    `SELECT COUNT(*) c FROM jobs WHERE ai_reasoning = ? AND status IN ('NEW','PENDING') AND date_found > ?`
-  ).get(FAILED_MARKER, cutoff) as { c: number }).c}\n`);
+
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
