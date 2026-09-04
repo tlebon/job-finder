@@ -36,12 +36,23 @@ interface Row {
   ai_suggestion: string; score: number; ai_score_adjustment: number | null;
 }
 
+// Only jobs whose adjustment was recorded separately. Where it was not, the
+// stored score still contains it, so the verdict is baked into the number being
+// evaluated against that verdict - the baseline then measures leakage, not
+// skill, and reads far higher than any honest scorer can.
 const rows = db.prepare(`
   SELECT title, company, location, url, description, source,
          ai_suggestion, score, ai_score_adjustment
   FROM jobs
   WHERE ai_reviewed = 1 AND ai_suggestion IS NOT NULL
+    AND ai_score_adjustment IS NOT NULL
 `).all() as Row[];
+
+const leaked = db.prepare(`
+  SELECT COUNT(*) c FROM jobs
+  WHERE ai_reviewed = 1 AND ai_suggestion IS NOT NULL AND ai_score_adjustment IS NULL
+`).get() as { c: number };
+if (leaked.c) console.log(`(excluding ${leaked.c} jobs whose stored score has the adjustment baked in)`);
 
 console.log(`${rows.length} AI-reviewed jobs\n`);
 
