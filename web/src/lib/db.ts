@@ -401,20 +401,41 @@ export function archiveStaleJobs(daysOld: number = 30, keepScoreAbove: number = 
   const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000).toISOString();
   const now = new Date().toISOString();
 
-  // Age alone is a bad reason to hide a strong match. A METR role scoring 88 -
-  // the highest in the database - was archived purely for being 30 days old,
-  // and it was a company on Tim's own shortlist. Strong AI verdicts and
-  // high-scoring jobs stay visible regardless of age.
+  // Age alone is a bad reason to hide a strong match - a METR role scoring 88
+  // was archived purely for being 30 days old. But "strong" is not a permanent
+  // pass either: an exempt job must still be reachable. A listing whose URL has
+  // failed a check is dead regardless of how well it scored, so the exemption
+  // requires check_failures = 0.
+  //
+  // Jobs never URL-checked keep the exemption for now; cleanup-deadlinks orders
+  // by last_url_check ascending, so those are exactly what it checks first, and
+  // the set converges over a few runs rather than dumping good jobs on day one.
   const result = db.prepare(`
     UPDATE jobs
     SET status = 'ARCHIVED', updated_at = ?
     WHERE status IN ('NEW', 'PENDING')
       AND date_found < ?
-      AND COALESCE(score, 0) < ?
-      AND COALESCE(ai_suggestion, '') NOT IN ('STRONG_FIT', 'GOOD_FIT')
+      AND NOT (
+        (COALESCE(score, 0) >= ? OR COALESCE(ai_suggestion, '') IN ('STRONG_FIT', 'GOOD_FIT'))
+        AND COALESCE(check_failures, 0) = 0
+      )
   `).run(now, cutoff, keepScoreAbove);
 
   return result.changes;
+}
+
+/** Exempt jobs that have never been verified reachable - the queue for cleanup-deadlinks. */
+export function getUnverifiedExemptJobs(daysOld: number = 30, keepScoreAbove: number = 60): Job[] {
+  const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000).toISOString();
+  const rows = db.prepare(`
+    SELECT * FROM jobs
+    WHERE status IN ('NEW', 'PENDING')
+      AND date_found < ?
+      AND (COALESCE(score, 0) >= ? OR COALESCE(ai_suggestion, '') IN ('STRONG_FIT', 'GOOD_FIT'))
+      AND last_url_check IS NULL
+    ORDER BY score DESC
+  `).all(cutoff, keepScoreAbove) as JobRow[];
+  return rows.map(rowToJob);
 }
 
 // ============ APP STATE ============
@@ -423,7 +444,7 @@ const LAST_VISITED_KEY = 'last_visited';
 const DEFAULT_LOOKBACK_DAYS = 7;
 
 // Server-side last-visited marker. Survives cleared browser data, incognito,
-// and switching device or browser — unlike the localStorage value it replaces.
+// and switching device or browser - unlike the localStorage value it replaces.
 export function getLastVisited(): string {
   const row = db.prepare('SELECT value FROM app_state WHERE key = ?').get(LAST_VISITED_KEY) as
     | { value: string }
