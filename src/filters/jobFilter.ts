@@ -34,7 +34,10 @@ const TECH_SCORE_CAP = 44;
  * role, so evidence found outside the title and the requirements is discounted
  * rather than trusted at face value.
  */
-const BOILERPLATE_DISCOUNT = 0.35;
+const BOILERPLATE_DISCOUNT = Number(process.env.SCORING_BOILERPLATE_DISCOUNT ?? 0.35);
+
+/** Set to 1 to score every category alike, as before ml/llm were weighted. */
+const FLAT_WEIGHTS = process.env.SCORING_FLAT_WEIGHTS === '1';
 
 /**
  * The part of a posting that is about this role rather than the company: the
@@ -242,7 +245,7 @@ export function filterJob(job: RawJob): FilterResult {
     matchedCriteria.push(`Tech: ${shown.join(', ')}`);
 
     const techScore = techCats
-      .map(c => (CATEGORY_WEIGHTS[c] ?? TECH_CATEGORY_POINTS) *
+      .map(c => (FLAT_WEIGHTS ? TECH_CATEGORY_POINTS : CATEGORY_WEIGHTS[c] ?? TECH_CATEGORY_POINTS) *
         (roleCats.includes(c) ? 1 : BOILERPLATE_DISCOUNT))
       .sort((a, b) => b - a)
       .slice(0, TECH_CATEGORY_CAP)

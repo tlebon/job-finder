@@ -14,6 +14,12 @@
  * The headline number is AUC: the chance that a randomly chosen strong-or-good
  * job outscores a randomly chosen auto-dismissed one. 0.50 is a coin flip.
  *
+ * Isolate one change at a time with the scoring toggles, since several shipped
+ * together and a single AUC cannot attribute a drop to any of them:
+ *
+ *   SCORING_FLAT_WEIGHTS=1           score every category alike (pre-weighting)
+ *   SCORING_BOILERPLATE_DISCOUNT=1   trust description-only evidence fully
+ *
  * Usage: npx tsx src/eval-scoring.ts
  */
 
