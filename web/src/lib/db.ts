@@ -79,6 +79,11 @@ function getDb(): Database.Database {
   } catch {
     // Column already exists
   }
+  try {
+    _db.exec(`ALTER TABLE jobs ADD COLUMN requires_relocation INTEGER DEFAULT 0`);
+  } catch {
+    // Column already exists
+  }
 
   // Set updated_at = created_at for existing jobs
   try {
@@ -196,6 +201,8 @@ export interface Job {
   checkFailures?: number;
   /** Tech categories matched at filter time. Drives the UI filter chips. */
   categories?: string[];
+  /** US on-site with no remote option: reachable, but implies a move. */
+  requiresRelocation?: boolean;
 }
 
 interface JobRow {
@@ -219,6 +226,7 @@ interface JobRow {
   last_url_check: string | null;
   check_failures: number | null;
   categories: string | null;
+  requires_relocation: number | null;
 }
 
 function rowToJob(row: JobRow): Job {
@@ -243,6 +251,7 @@ function rowToJob(row: JobRow): Job {
     lastUrlCheck: row.last_url_check || undefined,
     checkFailures: row.check_failures || 0,
     categories: row.categories ? JSON.parse(row.categories) : [],
+    requiresRelocation: row.requires_relocation === 1,
   };
 }
 

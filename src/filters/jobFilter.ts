@@ -16,7 +16,15 @@ function matchesAny(text: string, patterns: RegExp[]): string[] {
   return matches;
 }
 
-function isUSOnsite(location: string, description: string): boolean {
+/**
+ * US roles are no longer excluded: Tim is a US citizen and his stated fallback
+ * if the Berlin search doesn't land is Berkeley. AI-safety work in particular is
+ * concentrated in the Bay Area, and the old exclusion was dropping ~90 of 201
+ * jobs from the 80,000 Hours board, including Anthropic Alignment Science.
+ *
+ * Kept as a signal rather than a gate, so the UI can say "this needs a move".
+ */
+function requiresRelocation(location: string, description: string): boolean {
   const locationLower = location.toLowerCase();
   const fullText = `${location} ${description}`.toLowerCase();
 
@@ -142,15 +150,7 @@ export function filterJob(job: RawJob): FilterResult {
     };
   }
 
-  // Check if US on-site (no remote option)
-  if (isUSOnsite(location, description)) {
-    return {
-      passed: false,
-      score: 0,
-      matchedCriteria: ['EXCLUDED: US on-site (no remote)'],
-      categories: [],
-    };
-  }
+  const needsRelocation = requiresRelocation(location, description);
 
   // Check title matches
   const titleMatches = matchesAny(title, filterConfig.includeTitles);
@@ -207,11 +207,16 @@ export function filterJob(job: RawJob): FilterResult {
   // "2+ keywords" rule, which two synonyms could satisfy.
   const strongTechMatch = techCats.length >= 2 && locationMatches.length > 0;
 
+  if (needsRelocation) {
+    matchedCriteria.push('Requires relocation (US on-site)');
+  }
+
   return {
     passed: titleAndLocation || domainMatch || strongTechMatch,
     score,
     matchedCriteria,
     categories: techCats,
+    requiresRelocation: needsRelocation,
   };
 }
 
@@ -225,6 +230,7 @@ export function filterJobs(jobs: RawJob[]): { passed: RawJob[]; filtered: number
       // Attach score and categories to the job for sorting and UI filters
       (job as RawJob & { score: number; categories: string[] }).score = result.score;
       (job as RawJob & { score: number; categories: string[] }).categories = result.categories;
+      (job as RawJob & { requiresRelocation?: boolean }).requiresRelocation = result.requiresRelocation;
       passed.push(job);
     } else {
       filtered++;

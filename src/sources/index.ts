@@ -7,6 +7,7 @@ import { fetchAdzunaJobs } from './adzuna.js';
 import { fetchHNWhoIsHiringJobs } from './hn-whoishiring.js';
 import { fetchJSearchJobs } from './jsearch.js';
 import { fetch80000HoursJobs } from './80000hours.js';
+import { fetchAtsJobs } from './ats.js';
 
 interface SourceResult {
   name: string;
@@ -23,6 +24,8 @@ export async function fetchAllJobs(): Promise<RawJob[]> {
     fetchArbeitnowJobs().then(jobs => ({ name: 'Arbeitnow', jobs })),
     fetchHNWhoIsHiringJobs().then(jobs => ({ name: 'HN Who\'s Hiring', jobs })),
     fetch80000HoursJobs().then(jobs => ({ name: '80,000 Hours', jobs })),
+    // Company ATS boards: where AI-native companies actually post.
+    fetchAtsJobs().then(jobs => ({ name: 'ATS boards', jobs })),
   ];
 
   // Paid/optional sources (only run if configured)

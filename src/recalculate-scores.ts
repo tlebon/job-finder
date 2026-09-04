@@ -53,7 +53,7 @@ function main(): void {
 
   console.log(`Recalculating ${jobs.length} jobs\n`);
 
-  const update = db.prepare('UPDATE jobs SET score = ?, categories = ? WHERE id = ?');
+  const update = db.prepare('UPDATE jobs SET score = ?, categories = ?, requires_relocation = ? WHERE id = ?');
 
   let changed = 0;
   let unchanged = 0;
@@ -86,12 +86,12 @@ function main(): void {
       deltas.push(delta);
       changed++;
       if (confirm) {
-        update.run(newScore, JSON.stringify(result.categories), job.id);
+        update.run(newScore, JSON.stringify(result.categories), result.requiresRelocation ? 1 : 0, job.id);
       }
     } else {
       unchanged++;
       if (confirm) {
-        update.run(newScore, JSON.stringify(result.categories), job.id);
+        update.run(newScore, JSON.stringify(result.categories), result.requiresRelocation ? 1 : 0, job.id);
       }
     }
   }

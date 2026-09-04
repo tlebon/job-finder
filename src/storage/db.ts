@@ -84,6 +84,11 @@ try {
 } catch {
   // Column already exists
 }
+try {
+  db.exec(`ALTER TABLE jobs ADD COLUMN requires_relocation INTEGER DEFAULT 0`);
+} catch {
+  // Column already exists
+}
 
 // Set updated_at = created_at for existing jobs
 try {
@@ -191,8 +196,8 @@ export function appendJobs(jobs: Job[]): number {
   }
 
   const insert = db.prepare(`
-    INSERT OR IGNORE INTO jobs (id, date_found, source, company, title, location, url, description, cover_letter, status, score, categories)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO jobs (id, date_found, source, company, title, location, url, description, cover_letter, status, score, categories, requires_relocation)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertMany = db.transaction((jobs: Job[]) => {
@@ -210,7 +215,8 @@ export function appendJobs(jobs: Job[]): number {
         job.coverLetter || null,
         job.status || 'NEW',
         job.score || 0,
-        job.categories ? JSON.stringify(job.categories) : null
+        job.categories ? JSON.stringify(job.categories) : null,
+        job.requiresRelocation ? 1 : 0
       );
       if (result.changes > 0) count++;
     }
@@ -236,6 +242,7 @@ export function rawJobToJob(rawJob: RawJob, coverLetter?: string, status: Job['s
     status,
     score: (rawJob as RawJob & { score?: number }).score,
     categories: (rawJob as RawJob & { categories?: string[] }).categories,
+    requiresRelocation: (rawJob as RawJob & { requiresRelocation?: boolean }).requiresRelocation,
   };
 }
 

@@ -7,6 +7,7 @@ export type JobSource =
   | 'hn-whoishiring'
   | 'jsearch'
   | '80000hours'
+  | 'ats'
   | 'apify'
   | 'other';
 
@@ -25,7 +26,8 @@ export interface Job {
   appliedDate?: string;
   score?: number;
   /** Tech categories matched at filter time. */
-  categories?: string[]; // For ranking/boosting
+  categories?: string[];
+  requiresRelocation?: boolean; // For ranking/boosting
 }
 
 export interface RawJob {
@@ -52,6 +54,8 @@ export interface FilterResult {
   matchedCriteria: string[];
   /** Distinct tech categories matched. Doubles as the UI filter vocabulary. */
   categories: string[];
+  /** US on-site with no remote option: reachable, but implies a move. */
+  requiresRelocation?: boolean;
 }
 
 export interface CoverLetterContext {
