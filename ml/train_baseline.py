@@ -40,6 +40,14 @@ def load(path: str):
     rows = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
     rows = [r for r in rows if r.get("text") and len(r["text"]) > 100]
     print(f"{len(rows)} rows with usable text")
+    if len(rows) < 200:
+        # Fail loudly. sklearn's downstream error for an empty corpus is
+        # "empty vocabulary; perhaps the documents only contain stop words",
+        # which sends you looking at the vectoriser rather than the export.
+        raise SystemExit(
+            f"Only {len(rows)} usable rows - the export is probably empty or "
+            "pointed at the stale local database. Export from production."
+        )
     return rows
 
 
@@ -118,7 +126,7 @@ def main(path: str) -> None:
         "title": [r["title"] for r in rows],
         "text": [r["text"] for r in rows],
         "source": [r["source"] for r in rows],
-        "length": [[len(r["text"])] for r in rows],
+        "length": [len(r["text"]) for r in rows],
     })
 
     def run(name, features, show_curve=True):
