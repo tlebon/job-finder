@@ -3,8 +3,12 @@ import { filterJobs } from './filters/jobFilter.js';
 import { getExistingJobUrls, getExistingJobSignatures, appendJobs, rawJobToJob, updateJobWithAIReview, updateJobStatus, getProfile } from './storage/db.js';
 import { notifyNewJobs, notifyError } from './notifications/telegram.js';
 import { reviewCandidates } from './ai/reviewCandidates.js';
+import { findUnreviewed, reviewAndPersist } from './review/backlog.js';
 import { env } from './config.js';
 import type { Job, RawJob } from './types.js';
+
+/** Bounded so a large backlog drains over several runs rather than in one bill. */
+const BACKLOG_PER_RUN = 100;
 
 // Normalize title for duplicate detection within batch
 function normalizeTitle(title: string): string {
@@ -126,6 +130,19 @@ async function main() {
 
       if (autoDismissed > 0) {
         console.log(`  [AI] Auto-dismissed ${autoDismissed} jobs as NOT_FIT`);
+      }
+
+      // Step 5.6: drain any backlog. Review has only ever run over the batch a
+      // scrape brought in, so a job that arrived any other way - restored from
+      // NOT_FIT, un-archived, or caught in a run a deploy rollover killed - kept
+      // no verdict and sorted into the middle of the list carrying nothing.
+      const backlog = findUnreviewed({ limit: BACKLOG_PER_RUN });
+      if (backlog.length > 0) {
+        console.log(`\n🤖 Reviewing ${backlog.length} previously unreviewed jobs...`);
+        const tally = await reviewAndPersist(backlog, profile,
+          (done, total) => console.log(`  [AI] backlog ${done}/${total}`));
+        console.log(`  [AI] Backlog: ${tally.STRONG_FIT} strong, ${tally.GOOD_FIT} good, ` +
+          `${tally.MAYBE} maybe, ${tally.AUTO_DISMISS} dismissed`);
       }
     } else if (!profile) {
       console.log('  [AI] No profile configured, skipping AI review');
