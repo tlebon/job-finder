@@ -74,10 +74,11 @@ export const filterConfig: FilterConfig = {
     /\bem\b/i,
     /tech lead/i,
     /team lead/i,
-    // Adjacent roles (user requested)
-    /product manager/i,
-    /technical product manager/i,
-    /\btpm\b/i,
+    // Adjacent roles. Product and technical product management were here as an
+    // explicit request and have been withdrawn: Tim's own labels weight
+    // title_manager at -0.874, the strongest negative in the personalisation
+    // layer, and product-management titles matched 4 of his labels with zero
+    // yes. They were scoring +10 and passing the gate on the title alone.
     /developer relations/i,
     /developer advocate/i,
     /dev rel/i,
@@ -211,6 +212,13 @@ export const filterConfig: FilterConfig = {
     /remote/i, /distributed/i, /worldwide/i, /global/i, /anywhere/i, /international/i,
   ],
   excludeTitles: [
+    // Not engineering. Withdrawn from includeTitles on 2026-09-05: Tim does not
+    // want them and considers them unlikely, and his labels agree.
+    /product manager/i,
+    /technical product manager/i,
+    /\btpm\b/i,
+    /product owner/i,
+    /program(me)? manager/i,
     // Staff and Principal are NOT excluded. Sampling what these rules rejected,
     // /staff (engineer|...)/ threw away 33% good - including three Anthropic
     // Staff Software Engineer roles - and /principal/ threw away a Staff /

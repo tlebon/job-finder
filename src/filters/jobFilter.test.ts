@@ -416,3 +416,19 @@ test('the rescue is additive - anything the rules kept is still kept', () => {
     assert.equal(filterJob(j).passed, true, `"${j.title}" should still pass`);
   }
 });
+
+// Product management sat in includeTitles as an explicit request, scoring +10
+// and passing the gate on the title alone - which is how two Anthropic PM roles
+// reached the reviewer and came back STRONG_FIT. Withdrawn 2026-09-05.
+test('product management titles are excluded', () => {
+  for (const title of ['Product Manager, Safeguards', 'Technical Product Manager', 'Product Owner', 'Programme Manager']) {
+    const r = filterJob(job({ title, company: 'Anthropic', description: AI_BLURB, location: 'San Francisco, CA' }));
+    assert.equal(r.passed, false, `"${title}" should be excluded: ${r.matchedCriteria.join(' | ')}`);
+  }
+});
+
+test('engineering management is still allowed', () => {
+  // He was an EM at Wire and is open to it at the right company.
+  const r = filterJob(job({ title: 'Engineering Manager', description: 'Hands-on with Python and PyTorch.' }));
+  assert.equal(r.passed, true, `criteria: ${r.matchedCriteria.join(' | ')}`);
+});
