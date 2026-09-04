@@ -14,9 +14,15 @@
  * Prefers the schema.org JobPosting JSON-LD that most boards emit, since that
  * is the description proper rather than the page around it.
  *
+ * Two targets, because they are different populations. `jobs` holds only what
+ * the gate kept; the rejected rows in `label_sample` were never stored there
+ * and so are unreachable from it - which is most of the labelling set, and the
+ * part that exists to test what the gate throws away.
+ *
  * Usage:
  *   npx tsx src/enrich-descriptions.ts --dry-run [--limit=20]
  *   npx tsx src/enrich-descriptions.ts --confirm [--limit=200] [--min-length=800]
+ *   npx tsx src/enrich-descriptions.ts --target=sample --confirm
  */
 
 import { config } from 'dotenv';
@@ -78,19 +84,36 @@ async function fetchDescription(url: string): Promise<{ outcome: Outcome; text?:
   }
 }
 
-const rows = db.prepare(`
-  SELECT id, url, title, company, source, LENGTH(description) len
-  FROM jobs
-  WHERE description IS NOT NULL AND LENGTH(description) < ?
-    AND status NOT IN ('ARCHIVED', 'DEAD', 'EXPIRED')
-  ORDER BY score DESC
-  LIMIT ?
-`).all(minLength, limit) as { id: string; url: string; title: string; company: string; source: string; len: number }[];
+const target = process.argv.find(a => a.startsWith('--target='))?.split('=')[1] ?? 'jobs';
 
-console.log(`${rows.length} jobs with a description under ${minLength} characters\n`);
+// Unlabelled first: a row Tim has already judged is worth re-fetching, but a row
+// still ahead of him in the queue needs the full text before he reaches it.
+const rows = (target === 'sample'
+  ? db.prepare(`
+      SELECT id, url, title, company, source, LENGTH(description) len
+      FROM label_sample
+      WHERE LENGTH(description) < ?
+      ORDER BY human_label IS NOT NULL, display_order
+      LIMIT ?
+    `)
+  : db.prepare(`
+      SELECT id, url, title, company, source, LENGTH(description) len
+      FROM jobs
+      WHERE description IS NOT NULL AND LENGTH(description) < ?
+        AND status NOT IN ('ARCHIVED', 'DEAD', 'EXPIRED')
+      ORDER BY score DESC
+      LIMIT ?
+    `)
+).all(minLength, limit) as { id: string; url: string; title: string; company: string; source: string; len: number }[];
+
+console.log(`${rows.length} ${target === 'sample' ? 'sample rows' : 'jobs'} with a description under ${minLength} characters\n`);
 
 const updateJob = db.prepare('UPDATE jobs SET description = ? WHERE id = ?');
 const updateSample = db.prepare('UPDATE label_sample SET description = ? WHERE url = ?');
+const clearStaleLabel = db.prepare(`
+  UPDATE label_sample SET human_label = NULL, labelled_at = NULL
+  WHERE url = ? AND human_label IS NOT NULL
+`);
 
 const tally: Record<Outcome, number> = { enriched: 0, 'no-better': 0, blocked: 0, gone: 0, error: 0 };
 let gained = 0;
@@ -105,8 +128,12 @@ for (const [i, r] of rows.entries()) {
     if (!res.text || res.text.length < r.len * 1.5 || res.text.length < 600) {
       outcome = 'no-better';
     } else if (confirm) {
-      updateJob.run(res.text.slice(0, 50000), r.id);
-      updateSample.run(res.text.slice(0, 50000), r.url);
+      const text = res.text.slice(0, 50000);
+      updateJob.run(text, r.id);
+      updateSample.run(text, r.url);
+      // A judgement made on a 500-character stub was made on different
+      // evidence, so it goes back in the queue rather than standing.
+      clearStaleLabel.run(r.url);
       gained += res.text.length - r.len;
     } else {
       gained += res.text.length - r.len;
