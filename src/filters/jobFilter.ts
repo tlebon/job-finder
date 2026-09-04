@@ -201,11 +201,17 @@ export function filterJob(job: RawJob): FilterResult {
   const titleAndLocation = titleMatches.length > 0 && locationMatches.length > 0;
 
   // 2. Domain match (blockchain/privacy company with relevant tech)
-  const domainMatch = techCats.length > 0 && companyTypeMatches.length > 0 && locationMatches.length > 0;
+  const domainMatch =
+    techCats.length > 0 && companyTypeMatches.length > 0 &&
+    locationMatches.length > 0 && titleMatches.length > 0;
 
-  // 3. LENIENT: 2+ distinct tech categories + location. Stricter than the old
-  // "2+ keywords" rule, which two synonyms could satisfy.
-  const strongTechMatch = techCats.length >= 2 && locationMatches.length > 0;
+  // 3. LENIENT: 2+ distinct tech categories + location, but still requires a
+  // recognised title. Without that clause, every posting at an AI company
+  // passed on its boilerplate alone - Anthropic's Cash Manager, Treasury and
+  // Director, Revenue Accounting both matched llm+ml from the company blurb.
+  // Those all scored exactly 30, the signature of zero title match.
+  const strongTechMatch =
+    techCats.length >= 2 && locationMatches.length > 0 && titleMatches.length > 0;
 
   if (needsRelocation) {
     matchedCriteria.push('Requires relocation (US on-site)');

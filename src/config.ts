@@ -65,7 +65,8 @@ export const filterConfig: FilterConfig = {
     /research scientist/i,
     /member of technical staff/i,
     /alignment (engineer|scientist|research)/i,
-    /\bevals? engineer/i,
+    /\beval(s|uation|uations)? engineer/i,
+    /\bevals?\b.*\bengineer/i,
     /red team/i,
     // Management
     /engineering manager/i,
@@ -233,6 +234,26 @@ export const filterConfig: FilterConfig = {
     /\bux\b.*designer/i,
     /\bui\b.*designer/i,
     /graphic designer/i,
+    // Non-engineering roles at engineering companies. Every posting at an AI
+    // company mentions Claude/LLM/ML in its boilerplate, so the lenient
+    // "2+ tech categories" pass rule was admitting IT Support, AV Operations,
+    // Data Center Architect and Research Counsel on the strength of the company
+    // description rather than the role.
+    /\bit support\b/i,
+    /\bav\b (engineer|operations|specialist|technician)/i,
+    /data cent(er|re)/i,
+    /hardware (lab|engineer|technician)/i,
+    /\bcounsel\b/i,
+    /business systems/i,
+    /enablement/i,
+    /\bpolicy (design|manager|analyst)\b/i,
+    /partner manager/i,
+    /executive assistant/i,
+    /\bfacilities\b/i,
+    /workplace (experience|manager)/i,
+    /technical writer, /i,
+    /\brecruiting\b/i,
+    /\bsourcer\b/i,
     // Other non-dev roles
     /business analyst/i,
     /spokesperson/i,
