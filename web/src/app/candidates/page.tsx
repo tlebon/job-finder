@@ -426,7 +426,7 @@ export default function CandidatesPage() {
         ) : (
           <>
             {/* Toolbar: Select All + Sort */}
-            <div className="flex items-center justify-between gap-3 mb-4 pb-4 border-b border-[var(--border)]">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mb-4 pb-4 border-b border-[var(--border)]">
               <button
                 onClick={toggleAll}
                 className="flex items-center gap-2 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)]"
@@ -596,7 +596,7 @@ function CandidateCard({
     }`}>
       {/* Main card content - clickable to expand */}
       <div
-        className="p-5 cursor-pointer"
+        className="p-3 sm:p-5 cursor-pointer"
         onClick={(e) => {
           // Don't expand if clicking on interactive elements
           if ((e.target as HTMLElement).closest('button, a, input')) return;
@@ -610,7 +610,7 @@ function CandidateCard({
               e.stopPropagation();
               onToggle();
             }}
-            className={`mt-1 w-5 h-5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 cursor-pointer ${
+            className={`mt-1 w-5 h-5 min-w-[20px] rounded border-2 flex items-center justify-center transition-all flex-shrink-0 cursor-pointer ${
               selected
                 ? 'bg-[var(--accent)] border-[var(--accent)]'
                 : 'border-[var(--border)] hover:border-[var(--accent)]'
@@ -625,10 +625,10 @@ function CandidateCard({
 
           {/* Job Info */}
           <div className="flex-1 min-w-0">
-            <div className="flex justify-between items-start gap-4">
-              <div className="flex-1">
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-4">
+              <div className="flex-1 w-full sm:w-auto">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-lg font-serif font-medium text-[var(--ink)]">
+                  <h2 className="text-base sm:text-lg font-serif font-medium text-[var(--ink)]">
                     {job.title}
                   </h2>
                   {job.aiReviewed && job.aiSuggestion && (
@@ -644,17 +644,17 @@ function CandidateCard({
                     </span>
                   )}
                 </div>
-                <p className="text-[var(--ink-muted)] mt-0.5 flex items-center gap-2">
+                <p className="text-sm text-[var(--ink-muted)] mt-0.5 flex items-center gap-2 flex-wrap">
                   <span className="font-medium text-[var(--ink-light)]">{job.company}</span>
                   <span className="text-[var(--border)]">•</span>
-                  <span>{job.location}</span>
+                  <span className="truncate">{job.location}</span>
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-full text-xs font-mono bg-[var(--cream-dark)] text-[var(--ink-muted)]">
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-[var(--cream-dark)] text-[var(--ink-muted)]">
                   {job.source}
                 </span>
-                <span className="text-xs text-[var(--ink-muted)]">
+                <span className="text-xs text-[var(--ink-muted)] whitespace-nowrap">
                   {new Date(job.dateFound).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </span>
               </div>
@@ -668,7 +668,7 @@ function CandidateCard({
             )}
 
             {/* Actions */}
-            <div className="flex items-center gap-4 mt-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-4">
               <span className="text-sm text-[var(--accent)] flex items-center gap-1">
                 {expanded ? (
                   <>

@@ -417,9 +417,9 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Job Header Card */}
-        <div className="bg-white rounded-xl p-6 border border-[var(--border)] mb-6 animate-fade-in">
-          <div className="flex justify-between items-start gap-6">
-            <div className="flex-1">
+        <div className="bg-white rounded-xl p-4 sm:p-6 border border-[var(--border)] mb-6 animate-fade-in">
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+            <div className="flex-1 w-full sm:w-auto">
               <div className="flex items-center gap-3 mb-2 flex-wrap">
                 <h1 className="text-2xl font-serif font-medium text-[var(--ink)]">{job.title}</h1>
                 {job.aiReviewed && job.aiSuggestion && (
@@ -463,19 +463,19 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
               </div>
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto">
               <a
                 href={job.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-primary px-4 py-2 rounded-lg text-sm font-medium"
+                className="btn-primary px-4 py-2 min-h-[44px] rounded-lg text-sm font-medium flex items-center justify-center flex-1 sm:flex-none"
               >
                 Apply on Site →
               </a>
               <button
                 onClick={handleRegenerate}
                 disabled={regenerating}
-                className="btn-accent px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                className="btn-accent px-4 py-2 min-h-[44px] rounded-lg text-sm font-medium disabled:opacity-50 flex items-center justify-center flex-1 sm:flex-none"
               >
                 {regenerating ? (
                   <span className="flex items-center gap-2">
@@ -488,7 +488,7 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 border border-red-200 transition-colors"
+                className="px-4 py-2 min-h-[44px] rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 border border-red-200 transition-colors flex items-center justify-center flex-1 sm:flex-none"
               >
                 Delete Job
               </button>
@@ -497,7 +497,7 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
         </div>
 
         {/* Mobile Tab Switcher */}
-        <div className="lg:hidden flex gap-1 mb-4 p-1 bg-[var(--cream-dark)] rounded-lg">
+        <div className="lg:hidden flex gap-1 mb-4 p-1 bg-[var(--cream-dark)] rounded-lg sticky top-0 z-10">
           <button
             onClick={() => setActiveTab('description')}
             className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all ${
@@ -555,7 +555,7 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
                 </div>
               )}
             </div>
-            <div className="p-6 max-h-[70vh] overflow-auto">
+            <div className="p-4 sm:p-6 max-h-[50vh] sm:max-h-[70vh] overflow-auto">
               {translatedDescription ? (
                 <div
                   className="job-description"
@@ -613,12 +613,13 @@ export default function JobDetail({ params }: { params: Promise<{ id: string }> 
               </div>
             </div>
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <textarea
                 value={editedLetter}
                 onChange={e => setEditedLetter(e.target.value)}
                 placeholder="No cover letter yet. Click 'Generate Letter' above to create one."
-                className="w-full h-[50vh] p-4 rounded-lg border border-[var(--border)] bg-[var(--cream-dark)]/30 text-[var(--ink)] text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono leading-relaxed"
+                className="w-full h-auto max-h-[40vh] sm:h-[50vh] sm:max-h-[50vh] p-4 rounded-lg border border-[var(--border)] bg-[var(--cream-dark)]/30 text-[var(--ink)] text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono leading-relaxed"
+                style={{ minHeight: '300px' }}
               />
 
               {editedLetter && (

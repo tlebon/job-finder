@@ -137,7 +137,7 @@ export default function Home() {
               <h1 className="text-2xl font-serif font-medium text-[var(--ink)]">Job Finder</h1>
               <p className="text-sm text-[var(--ink-muted)]">Track applications, craft letters</p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               {scraperStatus && (
                 <span className="text-xs text-[var(--ink-muted)] max-w-[200px] truncate">
                   {scraperStatus}
@@ -146,7 +146,7 @@ export default function Home() {
               {metrics.pending > 0 && (
                 <Link
                   href="/candidates"
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 min-h-[44px] rounded-lg text-sm font-medium bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
                 >
                   <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
                   {metrics.pending} Candidates
@@ -154,7 +154,7 @@ export default function Home() {
               )}
               <button
                 onClick={() => setShowAddModal(true)}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-[var(--ink)] border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors flex items-center gap-2"
+                className="px-4 py-2 min-h-[44px] rounded-lg text-sm font-medium bg-white text-[var(--ink)] border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors flex items-center justify-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -164,7 +164,7 @@ export default function Home() {
               {scraperRunning ? (
                 <button
                   onClick={handleCancelScraper}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 min-h-[44px] rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -174,17 +174,17 @@ export default function Home() {
               ) : (
                 <button
                   onClick={handleRunScraper}
-                  className="btn-accent px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                  className="btn-accent px-4 py-2 min-h-[44px] rounded-lg text-sm font-medium flex items-center justify-center gap-2"
                 >
                   Run Scraper
                 </button>
               )}
-              <span className="text-xs font-mono text-[var(--ink-muted)] bg-[var(--cream-dark)] px-3 py-1.5 rounded">
+              <span className="text-xs font-mono text-[var(--ink-muted)] bg-[var(--cream-dark)] px-3 py-1.5 rounded sm:block hidden">
                 {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
               </span>
               <Link
                 href="/settings"
-                className="p-2 rounded-lg text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--cream-dark)] transition-colors"
+                className="p-2 min-h-[44px] rounded-lg text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--cream-dark)] transition-colors flex items-center justify-center"
                 title="Settings"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -441,7 +441,7 @@ function AddJobModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-auto">
-        <div className="p-6 border-b border-[var(--border)]">
+        <div className="p-4 sm:p-6 border-b border-[var(--border)]">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-serif font-medium text-[var(--ink)]">Add Job Manually</h2>
             <button
@@ -458,7 +458,7 @@ function AddJobModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
           {/* URL Field with Fetch Button */}
           <div>
             <label className="block text-sm font-medium text-[var(--ink)] mb-1">
@@ -492,7 +492,7 @@ function AddJobModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           </div>
 
           {/* Company and Title Row */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-[var(--ink)] mb-1">
                 Company <span className="text-red-500">*</span>
@@ -544,8 +544,9 @@ function AddJobModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Paste the job description here (optional but recommended for cover letter generation)"
-              rows={8}
-              className="w-full px-3 py-2 rounded-lg border border-[var(--border)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
+              rows={6}
+              className="w-full px-3 py-2 rounded-lg border border-[var(--border)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none sm:rows-8"
+              style={{ minHeight: '150px' }}
             />
           </div>
 

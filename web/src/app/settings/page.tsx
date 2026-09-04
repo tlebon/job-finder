@@ -312,7 +312,7 @@ export default function SettingsPage() {
               </p>
 
               <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-[var(--ink)] mb-1">Name</label>
                   <input
@@ -335,7 +335,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-[var(--ink)] mb-1">Location</label>
                   <input
@@ -358,7 +358,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-[var(--ink)] mb-1">LinkedIn</label>
                   <input
@@ -459,8 +459,8 @@ export default function SettingsPage() {
                 Filter rules determine which jobs pass through the scraper. Patterns are regex-enabled.
               </p>
 
-              <div className="flex gap-4 items-end flex-wrap">
-                <div className="w-40">
+              <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-end">
+                <div className="w-full sm:w-auto sm:flex-1 sm:max-w-[160px]">
                   <label className="block text-sm font-medium text-[var(--ink)] mb-1">Type</label>
                   <select
                     value={newRule.type}
@@ -472,7 +472,7 @@ export default function SettingsPage() {
                     ))}
                   </select>
                 </div>
-                <div className="flex-1 min-w-[200px]">
+                <div className="flex-1">
                   <label className="block text-sm font-medium text-[var(--ink)] mb-1">Pattern</label>
                   <input
                     type="text"
@@ -482,7 +482,7 @@ export default function SettingsPage() {
                     placeholder="e.g., frontend|react|vue"
                   />
                 </div>
-                <div className="w-32">
+                <div className="w-full sm:w-auto sm:flex-1 sm:max-w-[140px]">
                   <label className="block text-sm font-medium text-[var(--ink)] mb-1">Priority</label>
                   <select
                     value={newRule.priority}
@@ -496,7 +496,7 @@ export default function SettingsPage() {
                 </div>
                 <button
                   onClick={handleAddRule}
-                  className="btn-accent px-4 py-2 rounded-lg font-medium"
+                  className="btn-accent px-4 py-2 min-h-[44px] rounded-lg font-medium"
                 >
                   Add
                 </button>
@@ -543,7 +543,7 @@ export default function SettingsPage() {
                               >
                                 <button
                                   onClick={() => handleToggleRule(rule.id, !rule.enabled)}
-                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer flex-shrink-0 ${
+                                  className={`w-5 h-5 min-w-[20px] rounded border-2 flex items-center justify-center cursor-pointer flex-shrink-0 ${
                                     rule.enabled
                                       ? 'bg-[var(--accent)] border-[var(--accent)]'
                                       : 'border-gray-300'
@@ -555,7 +555,7 @@ export default function SettingsPage() {
                                     </svg>
                                   )}
                                 </button>
-                                <code className="flex-1 text-sm font-mono truncate">{rule.pattern}</code>
+                                <code className="flex-1 text-xs sm:text-sm font-mono truncate">{rule.pattern}</code>
                                 <span className={`text-xs font-medium px-2 py-0.5 rounded ${
                                   priority === 'required' ? 'bg-red-100 text-red-700' :
                                   priority === 'preferred' ? 'bg-amber-100 text-amber-700' :
