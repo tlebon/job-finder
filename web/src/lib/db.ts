@@ -241,6 +241,8 @@ export type AISuggestion = 'STRONG_FIT' | 'GOOD_FIT' | 'MAYBE' | 'AUTO_DISMISS';
 // Statuses hidden from the main job views but kept in the DB for audit
 const HIDDEN_STATUSES = "('DEAD', 'EXPIRED', 'ARCHIVED')";
 
+export type Reach = 'realistic' | 'stretch' | 'moonshot';
+
 export interface Job {
   id: string;
   dateFound: string;
@@ -257,6 +259,15 @@ export interface Job {
   appliedDate?: string;
   aiReviewed?: boolean;
   aiSuggestion?: AISuggestion;
+  /**
+   * How far a reach, judged independently of how much he wants it.
+   *
+   * Kept apart from aiSuggestion because collapsing them is what made a single
+   * verdict uninformative: a moonshot and a poor match both came out MAYBE and
+   * nothing downstream could separate them.
+   */
+  aiReach?: Reach;
+  modelScore?: number;
   aiReasoning?: string;
   updatedAt?: string;
   lastUrlCheck?: string;
@@ -283,6 +294,8 @@ interface JobRow {
   applied_date: string | null;
   ai_reviewed: number | null;
   ai_suggestion: string | null;
+  ai_reach: string | null;
+  model_score: number | null;
   ai_reasoning: string | null;
   updated_at: string | null;
   last_url_check: string | null;
@@ -308,6 +321,8 @@ function rowToJob(row: JobRow): Job {
     appliedDate: row.applied_date || undefined,
     aiReviewed: row.ai_reviewed === 1,
     aiSuggestion: row.ai_suggestion as AISuggestion | undefined,
+    aiReach: (row.ai_reach as Reach | null) ?? undefined,
+    modelScore: row.model_score ?? undefined,
     aiReasoning: row.ai_reasoning || undefined,
     updatedAt: row.updated_at || undefined,
     lastUrlCheck: row.last_url_check || undefined,

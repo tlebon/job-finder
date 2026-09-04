@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { CategoryFilter, CATEGORY_LABELS, categoryChipClass } from '@/components/CategoryFilter';
+import { ReachFilter, REACH_LABELS, reachChipClass, type Reach } from '@/components/ReachFilter';
 import Link from 'next/link';
 
 type AISuggestion = 'STRONG_FIT' | 'GOOD_FIT' | 'MAYBE' | 'AUTO_DISMISS';
@@ -22,6 +23,10 @@ interface Job {
   aiReasoning?: string;
   categories?: string[];
   requiresRelocation?: boolean;
+  /** How far a reach, judged separately from how much he wants it. */
+  aiReach?: Reach;
+  /** The trained model's probability. See src/model/score.ts. */
+  modelScore?: number;
 }
 
 type SortOption = 'ai' | 'score' | 'date' | 'company';
@@ -46,6 +51,7 @@ export default function CandidatesPage() {
   const [progress, setProgress] = useState<{ completed: number; total: number; pending: number; job?: string }>({ completed: 0, total: 0, pending: 0 });
   const [sortBy, setSortBy] = useState<SortOption>('ai');
   const [activeCategories, setActiveCategories] = useState<Set<string>>(new Set());
+  const [activeReach, setActiveReach] = useState<Set<Reach>>(new Set());
   const [hideRelocation, setHideRelocation] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [reviewProgress, setReviewProgress] = useState<{ total: number; completed: number; currentJob: string }>({ total: 0, completed: 0, currentJob: '' });
@@ -163,6 +169,15 @@ export default function CandidatesPage() {
     return counts;
   }, [jobs]);
 
+  const reachCounts = useMemo(() => {
+    const counts: Record<string, number> = { unrated: 0 };
+    for (const job of jobs) {
+      if (job.aiReach) counts[job.aiReach] = (counts[job.aiReach] || 0) + 1;
+      else counts.unrated++;
+    }
+    return counts;
+  }, [jobs]);
+
   const relocationCount = useMemo(
     () => jobs.filter(j => j.requiresRelocation).length,
     [jobs]
@@ -172,9 +187,21 @@ export default function CandidatesPage() {
   // widens the list rather than narrowing to jobs that are both.
   const visibleJobs = useMemo(() => jobs.filter(job => {
     if (hideRelocation && job.requiresRelocation) return false;
+    // An unrated job is not hidden by a reach filter: it has not been judged on
+    // that axis yet, and dropping it would quietly hide everything reviewed
+    // before the two-axis prompt existed.
+    if (activeReach.size > 0 && job.aiReach && !activeReach.has(job.aiReach)) return false;
     if (activeCategories.size === 0) return true;
     return (job.categories || []).some(c => activeCategories.has(c));
-  }), [jobs, activeCategories, hideRelocation]);
+  }), [jobs, activeCategories, activeReach, hideRelocation]);
+
+  const toggleReach = (reach: Reach) => {
+    setActiveReach(prev => {
+      const next = new Set(prev);
+      if (next.has(reach)) next.delete(reach); else next.add(reach);
+      return next;
+    });
+  };
 
   const toggleCategory = (cat: string) => {
     setActiveCategories(prev => {
@@ -474,6 +501,11 @@ export default function CandidatesPage() {
           </div>
         ) : (
           <>
+            <ReachFilter
+              active={activeReach}
+              counts={reachCounts}
+              onToggle={toggleReach}
+            />
             <CategoryFilter
               counts={categoryCounts}
               active={activeCategories}
@@ -696,6 +728,21 @@ function CandidateCard({
                   <h2 className="text-base sm:text-lg font-serif font-medium text-[var(--ink)]">
                     {job.title}
                   </h2>
+                  {job.aiReach && (
+                    /* Shown beside the verdict rather than folded into it: a
+                       moonshot he would love and a mediocre match are different
+                       things, and one badge cannot say which is which. */
+                    <span
+                      className={reachChipClass(job.aiReach, true) + ' px-2 py-0.5 text-xs'}
+                      title={
+                        job.aiReach === 'moonshot' ? 'A long shot - spend these deliberately'
+                        : job.aiReach === 'stretch' ? 'Credible but not the obvious candidate'
+                        : 'Your background clears the stated bar'
+                      }
+                    >
+                      {REACH_LABELS[job.aiReach]}
+                    </span>
+                  )}
                   {job.aiReviewed && job.aiSuggestion && (
                     <AIBadge suggestion={job.aiSuggestion} reasoning={job.aiReasoning} />
                   )}
