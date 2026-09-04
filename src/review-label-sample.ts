@@ -15,10 +15,13 @@
 
 import { config } from 'dotenv';
 import { db, getProfile } from './storage/db.js';
+import { ensureLabelSampleSchema } from './storage/labelSample.js';
 import { reviewCandidates } from './ai/reviewCandidates.js';
 import type { Job } from './types.js';
 
 config({ quiet: true });
+
+ensureLabelSampleSchema();
 
 const limit = Number(process.argv.find(a => a.startsWith('--limit='))?.split('=')[1] ?? 400);
 const confirm = process.argv.includes('--confirm');

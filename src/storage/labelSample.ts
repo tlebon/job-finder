@@ -75,18 +75,32 @@ export function insertLabelRows(rows: Omit<LabelRow, 'human_label' | 'labelled_a
   return run(rows);
 }
 
-// Verdicts for the labelling set, kept on the row itself.
-//
-// The comparison that matters is all three scorers on the *same* rows. Only 63
-// of 175 labelled rows carry a reviewer verdict, because a verdict only exists
-// for jobs the gate kept and stored - so the reviewer's apparent performance is
-// measured on the subset the regex already liked. That is the same range
-// restriction that produced two wrong answers earlier today.
-for (const column of ['ai_suggestion TEXT', 'ai_reasoning TEXT', 'ai_score_adjustment INTEGER', 'model_score REAL']) {
-  try {
-    db.exec(`ALTER TABLE label_sample ADD COLUMN ${column}`);
-  } catch {
-    // Column already exists
+/**
+ * Verdict columns for the labelling set.
+ *
+ * Exported and called explicitly rather than run as an import side-effect. The
+ * first version relied on the side-effect, and the one script that needed the
+ * columns never imported this module, so it failed at the first query with "no
+ * such column". A migration that only runs when something happens to import it
+ * is a migration that has not run.
+ *
+ * The columns exist because the comparison that matters is all three scorers on
+ * the *same* rows. Only the rows the gate kept were ever stored in `jobs`, so
+ * only those carry a verdict - measuring the reviewer there measures it on jobs
+ * the regex already liked.
+ */
+export function ensureLabelSampleSchema(): void {
+  for (const column of [
+    'ai_suggestion TEXT',
+    'ai_reasoning TEXT',
+    'ai_score_adjustment INTEGER',
+    'model_score REAL',
+  ]) {
+    try {
+      db.exec(`ALTER TABLE label_sample ADD COLUMN ${column}`);
+    } catch {
+      // Column already exists
+    }
   }
 }
 

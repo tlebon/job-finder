@@ -88,6 +88,13 @@ function getDb(): Database.Database {
       display_order INTEGER NOT NULL
     )
   `);
+  for (const column of ['ai_suggestion TEXT', 'ai_reasoning TEXT', 'ai_score_adjustment INTEGER', 'model_score REAL']) {
+    try {
+      _db.exec(`ALTER TABLE label_sample ADD COLUMN ${column}`);
+    } catch {
+      // Column already exists
+    }
+  }
 
   try {
     _db.exec(`ALTER TABLE jobs ADD COLUMN status_source TEXT`);
