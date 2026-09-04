@@ -72,10 +72,86 @@ function fromHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<(nav|header|footer)[\s\S]*?<\/\1>/gi, ' ');
+    .replace(/<(nav|header|footer|aside|form|select|button)[\s\S]*?<\/\1>/gi, ' ');
 }
 
-async function fetchDescription(url: string): Promise<{ outcome: Outcome; text?: string; status?: number }> {
+/**
+ * Everything after the page stops being the job.
+ *
+ * Aggregator pages append related listings, salary widgets and search links,
+ * all of which survive tag-stripping and swamp the posting itself.
+ */
+const TRAILING_CHROME = /(similar jobs|popular searches|receive similar jobs|related jobs|back to last search|you might also|recommended jobs|jobs by email|share this job|report this job)/i;
+
+/**
+ * The stub is the true opening of the description, so it says exactly where the
+ * real content starts on a page otherwise full of navigation. Without this the
+ * fallback returned a country selector, a salary chart and six unrelated
+ * vacancies, with the posting somewhere in the middle - strictly worse than the
+ * 500 characters it replaced.
+ */
+function anchorOnStub(text: string, stub: string): string | null {
+  const probe = stub.replace(/…\s*$/, '').trim().slice(0, 80);
+  if (probe.length < 30) return null;
+
+  const norm = (x: string) => x.replace(/\s+/g, ' ');
+  const at = norm(text).indexOf(norm(probe));
+  if (at < 0) return null;
+
+  let body = norm(text).slice(at);
+  const chrome = body.search(TRAILING_CHROME);
+  if (chrome > 400) body = body.slice(0, chrome);
+  return body.trim();
+}
+
+/**
+ * The longest run of prose in a page of navigation.
+ *
+ * Needed to repair rows enriched before the chrome guard existed: their stored
+ * text is a country selector and six unrelated vacancies wrapped around the
+ * real posting, and the stub that would have anchored it was overwritten. Link
+ * text comes in short lines, a job description in long ones, so the longest
+ * contiguous run of long lines is the posting.
+ */
+function largestProseBlock(text: string): string {
+  const lines = text.split('\n');
+  const isProse = (l: string) => l.trim().split(/\s+/).length >= 8;
+
+  let best = { start: 0, end: 0, words: 0 };
+  let start = -1, words = 0;
+
+  for (let i = 0; i <= lines.length; i++) {
+    if (i < lines.length && isProse(lines[i])) {
+      if (start < 0) start = i;
+      words += lines[i].trim().split(/\s+/).length;
+    } else if (start >= 0) {
+      // A single short line inside a paragraph run - a bullet, a heading - is
+      // part of the posting, so only two in a row end the block.
+      const gapEndsIt = i + 1 >= lines.length || !isProse(lines[i + 1]);
+      if (gapEndsIt) {
+        if (words > best.words) best = { start, end: i, words };
+        start = -1;
+        words = 0;
+      }
+    }
+  }
+
+  if (best.words < 60) return text;
+  return lines.slice(best.start, best.end).join('\n').trim();
+}
+
+/**
+ * Navigation reads as many very short lines; prose does not. A page that is
+ * mostly link text should be rejected rather than stored.
+ */
+function looksLikeChrome(text: string): boolean {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length < 12) return false;
+  const short = lines.filter(l => l.split(/\s+/).length <= 3).length;
+  return short / lines.length > 0.55;
+}
+
+async function fetchDescription(url: string, stub: string): Promise<{ outcome: Outcome; text?: string; status?: number }> {
   try {
     const res = await fetch(url, {
       redirect: 'follow',
@@ -87,7 +163,16 @@ async function fetchDescription(url: string): Promise<{ outcome: Outcome; text?:
     if (!res.ok) return { outcome: 'blocked', status: res.status };
 
     const html = await res.text();
-    const text = cleanJobDescription(fromJsonLd(html) ?? fromHtml(html));
+
+    const jsonLd = fromJsonLd(html);
+    let text = jsonLd ? cleanJobDescription(jsonLd) : '';
+
+    if (!text) {
+      const stripped = cleanJobDescription(fromHtml(html));
+      text = anchorOnStub(stripped, stub) ?? largestProseBlock(stripped);
+    }
+
+    if (looksLikeChrome(text)) return { outcome: 'no-better', status: res.status };
     return { outcome: 'enriched', text, status: res.status };
   } catch {
     return { outcome: 'error' };
@@ -95,26 +180,50 @@ async function fetchDescription(url: string): Promise<{ outcome: Outcome; text?:
 }
 
 const target = process.argv.find(a => a.startsWith('--target='))?.split('=')[1] ?? 'jobs';
+const repair = process.argv.includes('--repair');
 
 // Unlabelled first: a row Tim has already judged is worth re-fetching, but a row
 // still ahead of him in the queue needs the full text before he reaches it.
+// Repair operates on stored text alone - no fetching. The damage is that
+// navigation was saved around the posting; the posting is still in there.
+if (repair) {
+  const table = target === 'sample' ? 'label_sample' : 'jobs';
+  const all = db.prepare(`SELECT id, description FROM ${table} WHERE LENGTH(description) > 800`)
+    .all() as { id: string; description: string }[];
+
+  const fix = db.prepare(`UPDATE ${table} SET description = ? WHERE id = ?`);
+  let repaired = 0, saved = 0;
+  for (const r of all) {
+    if (!looksLikeChrome(r.description)) continue;
+    const cleaned = largestProseBlock(r.description);
+    if (cleaned.length < 300 || cleaned.length >= r.description.length) continue;
+    saved += r.description.length - cleaned.length;
+    if (confirm) fix.run(cleaned, r.id);
+    repaired++;
+  }
+  console.log(`${repaired} of ${all.length} rows in ${table} held navigation around the posting`);
+  console.log(`average ${repaired ? Math.round(saved / repaired) : 0} characters of chrome removed each`);
+  if (!confirm) console.log('DRY RUN: nothing written.');
+  process.exit(0);
+}
+
 const rows = (target === 'sample'
   ? db.prepare(`
-      SELECT id, url, title, company, source, LENGTH(description) len
+      SELECT id, url, title, company, source, description, LENGTH(description) len
       FROM label_sample
       WHERE LENGTH(description) < ?
       ORDER BY human_label IS NOT NULL, display_order
       LIMIT ?
     `)
   : db.prepare(`
-      SELECT id, url, title, company, source, LENGTH(description) len
+      SELECT id, url, title, company, source, description, LENGTH(description) len
       FROM jobs
       WHERE description IS NOT NULL AND LENGTH(description) < ?
         AND status NOT IN ('ARCHIVED', 'DEAD', 'EXPIRED')
       ORDER BY score DESC
       LIMIT ?
     `)
-).all(minLength, limit) as { id: string; url: string; title: string; company: string; source: string; len: number }[];
+).all(minLength, limit) as { id: string; url: string; title: string; company: string; source: string; description: string; len: number }[];
 
 console.log(`${rows.length} ${target === 'sample' ? 'sample rows' : 'jobs'} with a description under ${minLength} characters\n`);
 
@@ -134,7 +243,7 @@ let gained = 0;
 let marked = 0;
 
 for (const [i, r] of rows.entries()) {
-  const res = await fetchDescription(r.url);
+  const res = await fetchDescription(r.url, r.description ?? '');
   let outcome = res.outcome;
 
   if (outcome === 'enriched') {
