@@ -1,0 +1,17 @@
+{
+  "_comment": "Jobs Tim picked himself, from his open browser tabs on 2026-09-04. These are the only ground-truth positives this project has - the AI reviewer agrees with itself half the time, so its verdicts cannot serve as truth. Coverage here is the honest measure of whether the pipeline works. It was 4/12 before the 80,000 Hours parser fix, the ATS sources and the filter fixes of 2026-09-04.",
+  "entries": [
+    { "company": "METR",           "role": "Task Development Engineer", "via": "80000hours" },
+    { "company": "Anthropic",      "role": "Fellows Program",           "via": "80000hours" },
+    { "company": "Proton",         "role": "Docs",                      "via": "arbeitnow" },
+    { "company": "Perplexity",     "role": null,                        "via": "linkedin" },
+    { "company": "Granola",        "role": null,                        "via": "linkedin" },
+    { "company": "GoodHabitz",     "role": null,                        "via": "linkedin" },
+    { "company": "Zeiss",          "role": "Messtechnik",               "via": "stepstone" },
+    { "company": "Langfuse",       "role": null,                        "via": "ats" },
+    { "company": "Zyphra",         "role": null,                        "via": "ats" },
+    { "company": "Arveum",         "role": null,                        "via": "ats" },
+    { "company": "Vexcash",        "role": null,                        "via": "ats" },
+    { "company": "datasmartpoint", "role": null,                        "via": "ats" }
+  ]
+}
