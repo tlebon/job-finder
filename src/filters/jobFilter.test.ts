@@ -233,3 +233,35 @@ test('shape does not readmit the non-engineering roles', () => {
     assert.equal(r.passed, false, `"${title}" should still be excluded`);
   }
 });
+
+// --- the scorer should prefer the pivot -------------------------------------
+
+test('ml and llm roles outrank a generic web stack', () => {
+  const ml = filterJob(job({
+    title: 'Machine Learning Engineer',
+    description: 'PyTorch, LLM fine-tuning, RAG, embeddings, Python',
+  })).score;
+  const web = filterJob(job({
+    title: 'Senior Frontend Engineer',
+    description: 'React TypeScript Node AWS Docker Postgres GraphQL',
+  })).score;
+  assert.ok(ml > web, `ml (${ml}) should outrank generic web (${web})`);
+});
+
+// Company identity read out of a posting was worth +16, more than the Berlin
+// bonus. /privacy/ mostly matched GDPR footers; /e2e/ matched end-to-end tests.
+test('a GDPR footer and e2e testing earn no domain bonus', () => {
+  const r = filterJob(job({
+    description: 'React and TypeScript. See our Candidate Privacy Notice. ' +
+      'We run unit, integration and e2e tests. Approval matrix applies.',
+  }));
+  assert.ok(
+    !r.matchedCriteria.some(c => c.startsWith('Domain:')),
+    `should earn no domain bonus: ${r.matchedCriteria.join(' | ')}`
+  );
+});
+
+test('a genuine privacy company still earns the domain bonus', () => {
+  const r = filterJob(job({ company: 'Proton AG', description: 'React and TypeScript.' }));
+  assert.ok(r.matchedCriteria.some(c => c.startsWith('Domain:')), 'Proton should match on company');
+});

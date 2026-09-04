@@ -1,5 +1,5 @@
 import type { RawJob, FilterResult } from '../types.js';
-import { filterConfig, matchedTechCategories } from '../config.js';
+import { filterConfig, matchedTechCategories, CATEGORY_WEIGHTS } from '../config.js';
 import { getBlocklist } from '../storage/db.js';
 
 /**
@@ -18,6 +18,8 @@ const ENGINEERING_SHAPE =
 /** Bounded so a long job description cannot run the tech score away. */
 const TECH_CATEGORY_CAP = 4;
 const TECH_CATEGORY_POINTS = 8;
+/** Ceiling on the weighted tech term, so breadth still cannot run away. */
+const TECH_SCORE_CAP = 44;
 /** Boosts were left uncapped when tech was capped, so a keyword-stuffed
  *  description still outscored a terse one by ~23 points. Same bug, one line
  *  down; caught by the scoring-shape test rather than by inspection. */
@@ -187,11 +189,19 @@ export function filterJob(job: RawJob): FilterResult {
   const techCats = matchedTechCategories(fullText);
   if (techCats.length > 0) {
     matchedCriteria.push(`Tech: ${techCats.join(', ')}`);
-    score += Math.min(techCats.length, TECH_CATEGORY_CAP) * TECH_CATEGORY_POINTS;
+    // Weighted by category and still bounded, so ml/llm outrank a generic web
+    // stack rather than tying with it.
+    const techScore = techCats
+      .map(c => CATEGORY_WEIGHTS[c] ?? TECH_CATEGORY_POINTS)
+      .sort((a, b) => b - a)
+      .slice(0, TECH_CATEGORY_CAP)
+      .reduce((a, b) => a + b, 0);
+    score += Math.min(techScore, TECH_SCORE_CAP);
   }
 
   // Check company type (privacy, blockchain, etc.)
-  const companyTypeMatches = matchesAny(fullText, filterConfig.includeCompanyTypes);
+  // Company identity, so match the company - not 5,000 characters of posting.
+  const companyTypeMatches = matchesAny(company, filterConfig.includeCompanyTypes);
   if (companyTypeMatches.length > 0) {
     matchedCriteria.push(`Domain: ${companyTypeMatches.join(', ')}`);
     score += Math.min(companyTypeMatches.length, DOMAIN_CAP) * DOMAIN_POINTS;

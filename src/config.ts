@@ -134,17 +134,22 @@ export const filterConfig: FilterConfig = {
     ],
   },
 
+  // Company identity, matched against the COMPANY FIELD ONLY - never the
+  // description. Read from descriptions these were pure noise: /privacy/ hit
+  // 765 jobs, 353 of them a "Candidate Privacy Notice" GDPR footer; /\be2e\b/
+  // matched end-to-end *testing* in every sampled case; /signal/, /matrix/,
+  // /element/ and /wire/ matched "demand signal", "approval matrix", "finite
+  // element analysis" and "wire up integrations", with zero true positives
+  // between them. Together they were worth +16, more than the Berlin bonus.
   includeCompanyTypes: [
-    // Encrypted messaging / privacy
-    /encrypt/i,
-    /\be2e\b/i,
-    /end-to-end encrypt/i,
-    /privacy/i,
-    /secure messaging/i,
+    /\bproton\b/i,
     /\bsignal\b/i,
     /\bwire\b/i,
     /\belement\b/i,
     /\bmatrix\b/i,
+    /tutanota/i,
+    /mullvad/i,
+    /\bduckduckgo\b/i,
   ],
   // Target geography is Europe or the USA. The gate is deliberate - it keeps out
   // Beijing, Tel Aviv, Singapore - but the previous list only named a dozen
@@ -293,6 +298,24 @@ export const filterConfig: FilterConfig = {
 
 // Flattened view of techCategories, for callers that just need "did any tech match".
 export const allTechPatterns: RegExp[] = Object.values(filterConfig.techCategories).flat();
+
+/**
+ * Per-category score weights.
+ *
+ * Unweighted, every category was worth the same, so a Berlin CRUD job matching
+ * frontend+backend+infra+data scored identically to an Anthropic RL role. The
+ * stated target is applied AI / ML engineering, and the scorer should say so.
+ */
+export const CATEGORY_WEIGHTS: Record<string, number> = {
+  ml: 14,
+  llm: 14,
+  data: 10,
+  privacy: 8,
+  web3: 6,
+  frontend: 6,
+  backend: 5,
+  infra: 4,
+};
 
 /** Which tech categories a job's text matches. Used for scoring and for UI filters. */
 export function matchedTechCategories(text: string): string[] {
