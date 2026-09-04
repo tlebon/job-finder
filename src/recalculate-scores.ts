@@ -59,7 +59,12 @@ function main(): void {
 
   console.log(`Recalculating ${jobs.length} jobs\n`);
 
-  const update = db.prepare('UPDATE jobs SET score = ?, categories = ?, requires_relocation = ? WHERE id = ?');
+  // model_score included: filterJob computes it for every job now, and without
+  // writing it here the existing corpus has none, so the model can only affect
+  // jobs scraped from this point on.
+  const update = db.prepare(
+    'UPDATE jobs SET score = ?, categories = ?, requires_relocation = ?, model_score = ? WHERE id = ?'
+  );
   const archive = db.prepare("UPDATE jobs SET status = 'ARCHIVED', updated_at = ? WHERE id = ?");
 
   let changed = 0;
@@ -110,12 +115,12 @@ function main(): void {
       deltas.push(delta);
       changed++;
       if (confirm) {
-        update.run(newScore, JSON.stringify(result.categories), result.requiresRelocation ? 1 : 0, job.id);
+        update.run(newScore, JSON.stringify(result.categories), result.requiresRelocation ? 1 : 0, result.modelScore ?? null, job.id);
       }
     } else {
       unchanged++;
       if (confirm) {
-        update.run(newScore, JSON.stringify(result.categories), result.requiresRelocation ? 1 : 0, job.id);
+        update.run(newScore, JSON.stringify(result.categories), result.requiresRelocation ? 1 : 0, result.modelScore ?? null, job.id);
       }
     }
   }
