@@ -385,3 +385,34 @@ test('filterJobs returns the rejects, with the rule that rejected them', () => {
     `expected an account-executive rejection: ${rejected.map(r => r.reason).join(' | ')}`
   );
 });
+
+// --- the model rescues what the rules miss ----------------------------------
+// The regex gate keeps 37.2% of the stream at 60.3% recall against Tim's own
+// labels; the model keeps 35.2% at 73.9%. It runs as a rescue rather than a
+// replacement, so it can only add candidates.
+
+test('the model score is reported for every job that clears the exclusions', () => {
+  const r = filterJob(job({ title: 'Machine Learning Engineer', description: 'PyTorch and LLM work.' }));
+  assert.ok(typeof r.modelScore === 'number', 'modelScore should be present');
+  assert.ok(r.modelScore! >= 0 && r.modelScore! <= 1, `expected a probability, got ${r.modelScore}`);
+});
+
+test('a rescue cannot resurrect an excluded role', () => {
+  // Exclusions run before the model, and the function rules were measured at
+  // zero false negatives over 43 of Tim's labels.
+  for (const title of ['Enterprise Account Executive, Automotive', 'Technical Recruiter, AI']) {
+    const r = filterJob(job({ title, company: 'Anthropic', description: AI_BLURB, location: 'San Francisco, CA' }));
+    assert.equal(r.passed, false, `"${title}" must stay excluded regardless of model score`);
+  }
+});
+
+test('the rescue is additive - anything the rules kept is still kept', () => {
+  const jobs = [
+    job({ title: 'Machine Learning Engineer', description: 'PyTorch, LLM, Python.' }),
+    job({ title: 'Senior Frontend Engineer', description: 'React and TypeScript.' }),
+    job({ title: 'Research Engineer', description: 'Deep learning and evals.' }),
+  ];
+  for (const j of jobs) {
+    assert.equal(filterJob(j).passed, true, `"${j.title}" should still pass`);
+  }
+});

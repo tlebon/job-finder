@@ -28,6 +28,8 @@ export interface Job {
   /** Tech categories matched at filter time. */
   categories?: string[];
   requiresRelocation?: boolean; // For ranking/boosting
+  /** The trained model's probability, stored so the UI can sort on it. */
+  modelScore?: number;
 }
 
 export interface RawJob {
@@ -52,6 +54,8 @@ export interface FilterConfig {
 export interface FilterResult {
   passed: boolean;
   score: number;
+  /** Probability the trained model gives this posting. See src/model/score.ts. */
+  modelScore?: number;
   matchedCriteria: string[];
   /** Distinct tech categories matched. Doubles as the UI filter vocabulary. */
   categories: string[];

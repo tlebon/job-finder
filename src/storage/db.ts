@@ -50,6 +50,15 @@ try {
   // Columns already exist
 }
 
+// The trained model's probability for this posting. See src/model/score.ts.
+// Stored rather than recomputed so the UI can sort on it without loading a
+// 1.5MB model into the web process.
+try {
+  db.exec(`ALTER TABLE jobs ADD COLUMN model_score REAL`);
+} catch {
+  // Column already exists
+}
+
 // Record who set a status (migration).
 //
 // A dismissal Tim made by hand and one the reviewer made automatically both
@@ -217,8 +226,8 @@ export function appendJobs(jobs: Job[]): number {
   }
 
   const insert = db.prepare(`
-    INSERT OR IGNORE INTO jobs (id, date_found, source, company, title, location, url, description, cover_letter, status, score, categories, requires_relocation)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO jobs (id, date_found, source, company, title, location, url, description, cover_letter, status, score, categories, requires_relocation, model_score)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertMany = db.transaction((jobs: Job[]) => {
@@ -237,7 +246,8 @@ export function appendJobs(jobs: Job[]): number {
         job.status || 'NEW',
         job.score || 0,
         job.categories ? JSON.stringify(job.categories) : null,
-        job.requiresRelocation ? 1 : 0
+        job.requiresRelocation ? 1 : 0,
+        job.modelScore ?? null
       );
       if (result.changes > 0) count++;
     }
@@ -264,6 +274,7 @@ export function rawJobToJob(rawJob: RawJob, coverLetter?: string, status: Job['s
     score: (rawJob as RawJob & { score?: number }).score,
     categories: (rawJob as RawJob & { categories?: string[] }).categories,
     requiresRelocation: (rawJob as RawJob & { requiresRelocation?: boolean }).requiresRelocation,
+    modelScore: (rawJob as RawJob & { modelScore?: number }).modelScore,
   };
 }
 

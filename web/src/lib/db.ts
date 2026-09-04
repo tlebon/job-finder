@@ -59,6 +59,13 @@ function getDb(): Database.Database {
   } catch {
     // Column already exists
   }
+  // The trained model's probability for this posting.
+  try {
+    _db.exec(`ALTER TABLE jobs ADD COLUMN model_score REAL`);
+  } catch {
+    // Column already exists
+  }
+
   // Who set a status. A dismissal Tim made by hand and one the reviewer made
   // automatically both wrote NOT_FIT and were indistinguishable afterwards, so
   // every human judgement this app collected was discarded on write. Those are

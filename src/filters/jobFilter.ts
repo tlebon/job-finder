@@ -1,6 +1,7 @@
 import type { RawJob, FilterResult } from '../types.js';
 import { filterConfig, matchedTechCategories, CATEGORY_WEIGHTS } from '../config.js';
 import { roleSection } from '../utils/jobText.js';
+import { scoreJob } from '../model/score.js';
 import { getBlocklist } from '../storage/db.js';
 
 /**
@@ -21,6 +22,23 @@ const TECH_CATEGORY_CAP = 4;
 const TECH_CATEGORY_POINTS = 8;
 /** Ceiling on the weighted tech term, so breadth still cannot run away. */
 const TECH_SCORE_CAP = 44;
+
+/**
+ * Above this the model passes a job the regex rules would have dropped.
+ *
+ * Measured on 239 postings Tim labelled himself, drawn before the gate. At a
+ * threshold of 0.20 the model keeps 35.2% of the stream with 73.9% recall and
+ * 40.8% precision, against the regex gate's 37.2% / 60.3% / 35.2% - better on
+ * both axes at the same volume. Set slightly higher here because this is a
+ * rescue on top of the existing rules rather than a replacement, so it adds
+ * candidates and can never remove one.
+ *
+ * The hard exclusions still run first, so nothing rescues an Account Executive.
+ * Those rules reject on job function, which was measured against Tim's labels
+ * at zero false negatives over 43 matches - unlike the seniority and stack
+ * rules, which were 33% wrong and are gone.
+ */
+const MODEL_RESCUE_THRESHOLD = 0.25;
 
 /**
  * Kept at 1 - description-only evidence is trusted in full.
@@ -296,6 +314,11 @@ export function filterJob(job: RawJob): FilterResult {
   // Pass criteria (any of these):
 
   // 1. Title match + location match (traditional)
+  // Scored for every job that clears the exclusions, whether or not the regex
+  // rules would keep it - so the value is available for ranking and for
+  // measuring the two against each other later.
+  const model = scoreJob({ title, description, source: (job as RawJob).source });
+
   const titleAndLocation = titleMatches.length > 0 && locationKnown;
 
   // A title either on the whitelist or simply shaped like engineering work.
@@ -313,12 +336,21 @@ export function filterJob(job: RawJob): FilterResult {
   const strongTechMatch =
     techCats.length >= 2 && locationKnown && titleIsTechnical;
 
+  const modelRescue = model.probability >= MODEL_RESCUE_THRESHOLD;
+  const regexPassed = titleAndLocation || domainMatch || strongTechMatch;
+
+  matchedCriteria.push(`Model: ${model.probability.toFixed(3)}`);
+  if (modelRescue && !regexPassed) {
+    matchedCriteria.push('Kept by the model, not by the rules');
+  }
+
   if (needsRelocation) {
     matchedCriteria.push('Requires relocation (US on-site)');
   }
 
   return {
-    passed: titleAndLocation || domainMatch || strongTechMatch,
+    passed: regexPassed || modelRescue,
+    modelScore: model.probability,
     score,
     matchedCriteria,
     categories: techCats,
@@ -351,6 +383,7 @@ export function filterJobs(jobs: RawJob[]): { passed: RawJob[]; filtered: number
       (job as RawJob & { score: number; categories: string[] }).score = result.score;
       (job as RawJob & { score: number; categories: string[] }).categories = result.categories;
       (job as RawJob & { requiresRelocation?: boolean }).requiresRelocation = result.requiresRelocation;
+      (job as RawJob & { modelScore?: number }).modelScore = result.modelScore;
       passed.push(job);
     } else {
       filtered++;
