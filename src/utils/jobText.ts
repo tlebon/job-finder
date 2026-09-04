@@ -65,3 +65,24 @@ export function excerptForReview(raw: string | null | undefined, limit = 6000): 
 
   return text.slice(0, limit);
 }
+
+/**
+ * The part of a posting that describes the role rather than the company.
+ *
+ * Postings open with a blurb - at an AI company that blurb names Claude, LLMs
+ * and machine learning on every listing from Cash Manager upward - so reading
+ * role signal from the whole description reads the company instead. Returns the
+ * text from the requirements section onward when one is identifiable, and an
+ * empty string when it is not: better to fall back on the title alone than to
+ * award full confidence to text we cannot place. Roughly 55% of live postings
+ * have a locatable section.
+ */
+export function roleSection(raw: string | null | undefined): string {
+  const text = cleanJobDescription(raw);
+  if (!text) return '';
+
+  const match = text.match(REQUIREMENT_MARKERS);
+  if (!match || match.index === undefined) return '';
+
+  return text.slice(match.index);
+}

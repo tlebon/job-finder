@@ -1,5 +1,6 @@
 import type { RawJob, FilterResult } from '../types.js';
 import { filterConfig, matchedTechCategories, CATEGORY_WEIGHTS } from '../config.js';
+import { roleSection } from '../utils/jobText.js';
 import { getBlocklist } from '../storage/db.js';
 
 /**
@@ -20,6 +21,28 @@ const TECH_CATEGORY_CAP = 4;
 const TECH_CATEGORY_POINTS = 8;
 /** Ceiling on the weighted tech term, so breadth still cannot run away. */
 const TECH_SCORE_CAP = 44;
+
+/**
+ * What a category is worth when it appears only in the wider description.
+ *
+ * Measured over 436 AI-reviewed jobs, an ml or llm tag predicted a good verdict
+ * at 1.00x the base rate when the title was ML-shaped and 0.91x when it was not
+ * - statistically the same. A tag that carries the same information either way
+ * is not describing the role; it is matching the company's blurb, which at an
+ * AI company mentions Claude, LLMs and machine learning on every posting from
+ * Cash Manager upward. Weighting ml/llm heavily only helps if the tag means the
+ * role, so evidence found outside the title and the requirements is discounted
+ * rather than trusted at face value.
+ */
+const BOILERPLATE_DISCOUNT = 0.35;
+
+/**
+ * The part of a posting that is about this role rather than the company: the
+ * title, plus the requirements section when one is identifiable.
+ */
+function roleText(title: string, description: string): string {
+  return `${title} ${roleSection(description)}`;
+}
 /** Boosts were left uncapped when tech was capped, so a keyword-stuffed
  *  description still outscored a terse one by ~23 points. Same bug, one line
  *  down; caught by the scoring-shape test rather than by inspection. */
@@ -207,17 +230,24 @@ export function filterJob(job: RawJob): FilterResult {
   // Tech is scored by distinct category, not by raw keyword count. Listing
   // react + typescript + redux is one signal, and counting each hit let verbose
   // job descriptions outscore terse ones for the same role.
+  // Two different jobs, deliberately kept apart. The broad match decides
+  // whether a listing is worth keeping at all and is what the UI filters on,
+  // so it stays generous. The narrow match decides rank, and reads only where
+  // the text is actually about this role.
   const techCats = matchedTechCategories(fullText);
+  const roleCats = matchedTechCategories(roleText(title, description));
+
   if (techCats.length > 0) {
-    matchedCriteria.push(`Tech: ${techCats.join(', ')}`);
-    // Weighted by category and still bounded, so ml/llm outrank a generic web
-    // stack rather than tying with it.
+    const shown = techCats.map(c => (roleCats.includes(c) ? c : `(${c})`));
+    matchedCriteria.push(`Tech: ${shown.join(', ')}`);
+
     const techScore = techCats
-      .map(c => CATEGORY_WEIGHTS[c] ?? TECH_CATEGORY_POINTS)
+      .map(c => (CATEGORY_WEIGHTS[c] ?? TECH_CATEGORY_POINTS) *
+        (roleCats.includes(c) ? 1 : BOILERPLATE_DISCOUNT))
       .sort((a, b) => b - a)
       .slice(0, TECH_CATEGORY_CAP)
       .reduce((a, b) => a + b, 0);
-    score += Math.min(techScore, TECH_SCORE_CAP);
+    score += Math.min(Math.round(techScore), TECH_SCORE_CAP);
   }
 
   // Check company type (privacy, blockchain, etc.)

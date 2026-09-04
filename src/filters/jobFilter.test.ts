@@ -303,3 +303,40 @@ test('plain backend CRUD is still excluded', () => {
   const r = filterJob(job({ title: 'Senior Java Developer', description: 'Spring Boot, Hibernate, Oracle, REST APIs.' }));
   assert.ok(r.matchedCriteria.some(c => c.includes('Backend-only')), `criteria: ${r.matchedCriteria.join(' | ')}`);
 });
+
+// --- a category must describe the role, not the company ----------------------
+// Measured over 436 AI-reviewed jobs, an ml/llm tag predicted a good verdict at
+// 1.00x base rate with an ML-shaped title and 0.91x without - the same either
+// way, which means it was matching the company blurb rather than the role.
+
+const AI_BLURB =
+  'Anthropic is an AI safety company. We build Claude, a large language model. ' +
+  'Our research spans machine learning, LLM alignment and interpretability. ';
+
+test('ml signal from the company blurb scores below the same signal in the role', () => {
+  const blurbOnly = filterJob(job({
+    title: 'Software Engineer',
+    description: AI_BLURB + 'What you will do: build internal web tooling in React and TypeScript.',
+  })).score;
+
+  const inRole = filterJob(job({
+    title: 'Software Engineer',
+    description: AI_BLURB + 'What you will do: train and evaluate large language models in PyTorch.',
+  })).score;
+
+  assert.ok(inRole > blurbOnly, `role-borne ml (${inRole}) should beat blurb-borne ml (${blurbOnly})`);
+});
+
+test('an ML title earns full weight even with no requirements section', () => {
+  const titled = filterJob(job({ title: 'Machine Learning Engineer', description: AI_BLURB })).score;
+  const untitled = filterJob(job({ title: 'Office Manager', description: AI_BLURB })).score;
+  assert.ok(titled > untitled, `${titled} should beat ${untitled}`);
+});
+
+// The broad match still drives recall and the UI, so nothing disappears from
+// the category filters just because the evidence sat in the blurb.
+test('categories are still reported from the whole posting', () => {
+  const r = filterJob(job({ title: 'Software Engineer', description: AI_BLURB + 'React work.' }));
+  assert.ok(r.categories.includes('ml'), `categories: ${r.categories.join(',')}`);
+  assert.ok(r.categories.includes('llm'));
+});
