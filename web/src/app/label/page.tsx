@@ -118,6 +118,18 @@ export default function LabelPage() {
         <p className="mt-1 text-[var(--muted)]">
           {current.company} · {current.location}
         </p>
+        {current.description.length < 800 && (
+          /* Adzuna's API returns a hard 500-character blurb and nothing more -
+             27% of the corpus. The gate and the AI reviewer judge these on the
+             same fragment, so they stay in the sample rather than being quietly
+             dropped, but you should know when you are deciding on a summary.
+             Skip is the right answer when the fragment does not tell you. */
+          <p className="mt-4 rounded border border-amber-600/40 bg-amber-600/10 px-3 py-2 text-sm text-amber-200/90">
+            Short listing - this is everything the source provides, usually the
+            first 500 characters. Press <strong>s</strong> to skip if you cannot
+            judge it; skipped items are excluded rather than counted as no.
+          </p>
+        )}
         <pre className="mt-5 whitespace-pre-wrap break-words font-sans text-sm leading-relaxed">
           {current.description.slice(0, 6000)}
         </pre>
