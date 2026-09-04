@@ -21,6 +21,15 @@ export interface BacklogQuery {
   minScore?: number;
   /** Restrict to these sources. See findUnreviewed for why this beats minScore. */
   sources?: string[];
+  /**
+   * Include jobs already reviewed by an older prompt.
+   *
+   * ai_reach is the marker: it only exists from the two-axis prompt onward, so
+   * a reviewed job without one carries a verdict from the version that graded
+   * whether Tim was qualified rather than whether he would apply - measured at
+   * 55% recall against his labels, where the replacement gets 68%.
+   */
+  includeStale?: boolean;
 }
 
 /**
@@ -44,7 +53,7 @@ export interface BacklogQuery {
  * put adzuna at 0.41x; that sample was restricted on the very variable being
  * evaluated.
  */
-export function findUnreviewed({ limit = 0, minScore = 0, sources }: BacklogQuery = {}): Job[] {
+export function findUnreviewed({ limit = 0, minScore = 0, sources, includeStale = false }: BacklogQuery = {}): Job[] {
   const params: (string | number)[] = [minScore];
   let sourceClause = '';
   if (sources?.length) {
@@ -53,10 +62,14 @@ export function findUnreviewed({ limit = 0, minScore = 0, sources }: BacklogQuer
   }
   if (limit > 0) params.push(limit);
 
+  const reviewedClause = includeStale
+    ? '(ai_reviewed = 0 OR ai_reviewed IS NULL OR ai_reach IS NULL)'
+    : '(ai_reviewed = 0 OR ai_reviewed IS NULL)';
+
   return db.prepare(`
     SELECT * FROM jobs
-    WHERE (ai_reviewed = 0 OR ai_reviewed IS NULL)
-      AND status IN ('PENDING', 'NEW')
+    WHERE ${reviewedClause}
+      AND status NOT IN ('NOT_FIT', 'ARCHIVED', 'DEAD', 'EXPIRED', 'APPLIED', 'INTERVIEW')
       AND score >= ?
       ${sourceClause}
     ORDER BY score DESC

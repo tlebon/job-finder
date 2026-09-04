@@ -6,6 +6,12 @@
  * Usage:
  *   npx tsx src/review-pending.ts --dry-run
  *   npx tsx src/review-pending.ts --confirm [--limit=200] [--sources=80000hours,ats]
+ *   npx tsx src/review-pending.ts --confirm --include-stale
+ *
+ * --include-stale also re-reviews jobs judged by an older prompt, identified by
+ * a missing ai_reach. Those verdicts came from the version asking whether Tim
+ * was qualified rather than whether he would apply, which measured 55% recall
+ * against his own labels where the replacement gets 68%.
  *
  * Prefer --sources over --min-score when trimming to a budget: the score does
  * not rank (see review/backlog.ts), the source does.
@@ -27,10 +33,11 @@ const limit = flag('limit', 0);
 const minScore = flag('min-score', 0);
 const sourcesArg = args.find(a => a.startsWith('--sources='));
 const sources = sourcesArg ? sourcesArg.split('=')[1].split(',').filter(Boolean) : undefined;
-const jobs = findUnreviewed({ limit, minScore, sources });
+const includeStale = args.includes('--include-stale');
+const jobs = findUnreviewed({ limit, minScore, sources, includeStale });
 
-console.log(`${jobs.length} unreviewed jobs${minScore ? ` scoring >= ${minScore}` : ''}` +
-  `${sources ? ` from ${sources.join(', ')}` : ''}`);
+console.log(`${jobs.length} ${includeStale ? 'unreviewed or stale' : 'unreviewed'} jobs` +
+  `${minScore ? ` scoring >= ${minScore}` : ''}${sources ? ` from ${sources.join(', ')}` : ''}`);
 if (jobs.length === 0) process.exit(0);
 
 const bySource = jobs.reduce<Record<string, number>>((acc, j) => {
