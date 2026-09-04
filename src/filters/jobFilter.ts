@@ -326,8 +326,22 @@ export function filterJob(job: RawJob): FilterResult {
   };
 }
 
-export function filterJobs(jobs: RawJob[]): { passed: RawJob[]; filtered: number } {
+export interface Rejection {
+  job: RawJob;
+  score: number;
+  reason: string;
+}
+
+/**
+ * Returns the rejects as well as the survivors.
+ *
+ * They used to be counted and dropped, which made the gate's recall
+ * unmeasurable and left any model trained on the stored corpus learning from
+ * survivors while being asked to rank the whole stream.
+ */
+export function filterJobs(jobs: RawJob[]): { passed: RawJob[]; filtered: number; rejected: Rejection[] } {
   const passed: RawJob[] = [];
+  const rejected: Rejection[] = [];
   let filtered = 0;
 
   for (const job of jobs) {
@@ -340,6 +354,11 @@ export function filterJobs(jobs: RawJob[]): { passed: RawJob[]; filtered: number
       passed.push(job);
     } else {
       filtered++;
+      rejected.push({
+        job,
+        score: result.score,
+        reason: result.matchedCriteria.find(c => c.startsWith('EXCLUDED')) ?? 'no pass rule met',
+      });
     }
   }
 
@@ -354,7 +373,7 @@ export function filterJobs(jobs: RawJob[]): { passed: RawJob[]; filtered: number
   console.log(`  - Passed: ${passed.length}`);
   console.log(`  - Filtered out: ${filtered}`);
 
-  return { passed, filtered };
+  return { passed, filtered, rejected };
 }
 
 // Helper to detect job type for cover letter customization

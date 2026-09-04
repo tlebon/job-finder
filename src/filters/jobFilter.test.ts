@@ -12,7 +12,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterJob } from './jobFilter.js';
+import { filterJob, filterJobs } from './jobFilter.js';
 import { matchedTechCategories, filterConfig } from '../config.js';
 import type { RawJob } from '../types.js';
 
@@ -362,4 +362,26 @@ test('a genuinely remote US role is not flagged for relocation', () => {
     const r = filterJob(job({ title: 'Machine Learning Engineer', location, description }));
     assert.notEqual(r.requiresRelocation, true, `should not need relocation: "${location}" / "${description}"`);
   }
+});
+
+// --- the gate must not destroy the evidence ---------------------------------
+// filterJobs used to count rejects and drop them, so the gate's own recall was
+// unmeasurable and any model trained on the stored corpus learned from
+// survivors while being asked to rank the whole stream.
+
+test('filterJobs returns the rejects, with the rule that rejected them', () => {
+  const jobs = [
+    job({ title: 'Machine Learning Engineer', description: 'PyTorch and LLM work.' }),
+    job({ title: 'Enterprise Account Executive', description: 'Close deals across DACH.' }),
+    job({ title: 'Senior Java Developer', description: 'Spring Boot, Hibernate, Oracle.' }),
+  ];
+  const { passed, filtered, rejected } = filterJobs(jobs);
+
+  assert.equal(passed.length + rejected.length, jobs.length, 'every job is accounted for');
+  assert.equal(rejected.length, filtered, 'the count and the list agree');
+  assert.ok(rejected.every(r => r.reason.length > 0), 'each reject carries a reason');
+  assert.ok(
+    rejected.some(r => r.reason.includes('account executive')),
+    `expected an account-executive rejection: ${rejected.map(r => r.reason).join(' | ')}`
+  );
 });

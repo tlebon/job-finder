@@ -1,5 +1,6 @@
 import { fetchAllJobs } from './sources/index.js';
 import { filterJobs } from './filters/jobFilter.js';
+import { recordRejects, rejectStats } from './storage/rejects.js';
 import { getExistingJobUrls, getExistingJobSignatures, appendJobs, rawJobToJob, updateJobWithAIReview, updateJobStatus, getProfile } from './storage/db.js';
 import { notifyNewJobs, notifyError } from './notifications/telegram.js';
 import { reviewCandidates } from './ai/reviewCandidates.js';
@@ -66,7 +67,17 @@ async function main() {
     }
 
     // Step 2: Filter jobs
-    const { passed: filteredJobs } = filterJobs(rawJobs);
+    const { passed: filteredJobs, rejected } = filterJobs(rawJobs);
+
+    // Record what the gate turned away. Previously these were counted and
+    // dropped, so the gate's recall could not be measured without re-fetching
+    // every source, and a model trained on the stored corpus learned from
+    // survivors while being asked to rank the whole stream.
+    if (!env.DRY_RUN && rejected.length > 0) {
+      const stored = recordRejects(rejected);
+      const stats = rejectStats();
+      console.log(`  Recorded ${stored} new rejects (${stats.total} known across ${stats.sources} sources)`);
+    }
 
     if (filteredJobs.length === 0) {
       console.log('\nNo jobs passed the filter. Exiting.');
