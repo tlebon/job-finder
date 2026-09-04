@@ -11,11 +11,12 @@ import type { Job, RawJob } from './types.js';
 const BACKLOG_PER_RUN = 100;
 
 /**
- * Drain the sources whose jobs actually earn a verdict. Measured over 436
- * reviewed jobs, 80000hours returns 82% strong-or-good and adzuna 8%, so
- * spending the budget evenly across sources buys mostly auto-dismissals.
+ * No source restriction. An earlier version skipped adzuna on a measured 8%
+ * good rate, but that came from a sample drawn highest-score-first; over the
+ * full labelled set adzuna runs 28% good, above the 21% base rate. 80000hours
+ * is the one source that holds up as exceptional either way, at 3.30x.
  */
-const BACKLOG_SOURCES = ['80000hours', 'ats', 'arbeitnow'];
+const BACKLOG_SOURCES = undefined;
 
 // Normalize title for duplicate detection within batch
 function normalizeTitle(title: string): string {

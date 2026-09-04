@@ -25,20 +25,24 @@ export interface BacklogQuery {
 
 /**
  * Highest-scoring first, but do not mistake that for a ranking. Measured over
- * 436 reviewed jobs, the regex score separates AUTO_DISMISS (median 44) from
- * the rest (median ~52) and nothing else: STRONG_FIT and MAYBE have the same
- * median and overlapping quartiles, the top-scoring job in the database is a
- * MAYBE, and a STRONG_FIT can score 15. Cutting the tail at 45 would have
- * discarded 29% of the strong-and-good jobs.
+ * 2,977 labelled jobs whose base score is recoverable, the score separates
+ * strong-or-good from auto-dismissed at AUC 0.57, and STRONG_FIT from MAYBE at
+ * 0.45 - below a coin flip. It is a coarse gate, not a ranker, and trimming a
+ * backlog by score therefore drops good jobs close to at random.
  *
- * Source is the signal that actually predicts a verdict, by a wide margin:
+ * Source does carry signal, over the full labelled set:
  *
- *   80000hours  82% strong-or-good   4.35x base rate
- *   ats         21%                  1.10x
- *   arbeitnow   16%                  0.85x
- *   adzuna       8%                  0.41x
+ *   80000hours  69% strong-or-good   3.30x base rate
+ *   adzuna      28%                  1.37x
+ *   hn          23%                  1.12x
+ *   ats         20%                  0.98x
+ *   arbeitnow   17%                  0.80x
+ *   remoteok    10%                  0.47x
  *
- * So prefer `sources` over `minScore` when trimming a backlog to fit a budget.
+ * Prefer `sources` over `minScore` when a budget forces a choice. Note these
+ * differ from an earlier set measured on a highest-score-first sample, which
+ * put adzuna at 0.41x; that sample was restricted on the very variable being
+ * evaluated.
  */
 export function findUnreviewed({ limit = 0, minScore = 0, sources }: BacklogQuery = {}): Job[] {
   const params: (string | number)[] = [minScore];

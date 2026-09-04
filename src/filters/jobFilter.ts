@@ -23,18 +23,15 @@ const TECH_CATEGORY_POINTS = 8;
 const TECH_SCORE_CAP = 44;
 
 /**
- * What a category is worth when it appears only in the wider description.
+ * Kept at 1 - description-only evidence is trusted in full.
  *
- * Measured over 436 AI-reviewed jobs, an ml or llm tag predicted a good verdict
- * at 1.00x the base rate when the title was ML-shaped and 0.91x when it was not
- * - statistically the same. A tag that carries the same information either way
- * is not describing the role; it is matching the company's blurb, which at an
- * AI company mentions Claude, LLMs and machine learning on every posting from
- * Cash Manager upward. Weighting ml/llm heavily only helps if the tag means the
- * role, so evidence found outside the title and the requirements is discounted
- * rather than trusted at face value.
+ * It was briefly discounted to 0.35, on the theory that ml/llm tags were
+ * matching AI-company blurb rather than the role. Measured, the discount was a
+ * small consistent negative in every configuration, and the finding behind it
+ * came from a range-restricted sample. The knob stays so the idea can be
+ * retested cheaply, but it is off.
  */
-const BOILERPLATE_DISCOUNT = Number(process.env.SCORING_BOILERPLATE_DISCOUNT ?? 0.35);
+const BOILERPLATE_DISCOUNT = Number(process.env.SCORING_BOILERPLATE_DISCOUNT ?? 1);
 
 /** Set to 1 to score every category alike, as before ml/llm were weighted. */
 const FLAT_WEIGHTS = process.env.SCORING_FLAT_WEIGHTS === '1';
