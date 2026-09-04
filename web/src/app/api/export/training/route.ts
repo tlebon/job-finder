@@ -41,6 +41,28 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const maxChars = Number(url.searchParams.get('chars') ?? 6000);
 
+  // The labelling set is a different population - it includes rows the gate
+  // rejected, which never reach the jobs table - and it carries Tim's own
+  // verdicts, which are the only ground truth here.
+  if (url.searchParams.get('set') === 'labels') {
+    const labelled = db.prepare(`
+      SELECT title, company, location, source, description, url,
+             gate_passed, regex_score, sampling_prob, stratum,
+             human_label, ai_suggestion, ai_score_adjustment
+      FROM label_sample
+    `).all() as Record<string, unknown>[];
+
+    const body = labelled.map(r => JSON.stringify({
+      ...r,
+      text: String(r.description ?? '').slice(0, maxChars),
+      description: undefined,
+    })).join('\n');
+
+    return new Response(body, {
+      headers: { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store' },
+    });
+  }
+
   const rows = db.prepare(`
     SELECT title, company, location, source, description,
            ai_suggestion, status, status_source, score, ai_score_adjustment

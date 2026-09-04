@@ -75,6 +75,21 @@ export function insertLabelRows(rows: Omit<LabelRow, 'human_label' | 'labelled_a
   return run(rows);
 }
 
+// Verdicts for the labelling set, kept on the row itself.
+//
+// The comparison that matters is all three scorers on the *same* rows. Only 63
+// of 175 labelled rows carry a reviewer verdict, because a verdict only exists
+// for jobs the gate kept and stored - so the reviewer's apparent performance is
+// measured on the subset the regex already liked. That is the same range
+// restriction that produced two wrong answers earlier today.
+for (const column of ['ai_suggestion TEXT', 'ai_reasoning TEXT', 'ai_score_adjustment INTEGER', 'model_score REAL']) {
+  try {
+    db.exec(`ALTER TABLE label_sample ADD COLUMN ${column}`);
+  } catch {
+    // Column already exists
+  }
+}
+
 export function labelProgress(): { total: number; labelled: number } {
   const r = db.prepare(`
     SELECT COUNT(*) total, SUM(human_label IS NOT NULL) labelled FROM label_sample
