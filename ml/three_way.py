@@ -80,9 +80,15 @@ def main(train_path: str, labels_path: str) -> None:
     # The reviewer is ordinal, so rank it rather than collapsing to a bit.
     rank = {"AUTO_DISMISS": 0, "MAYBE": 1, "GOOD_FIT": 2, "STRONG_FIT": 3}
     have_ai = [i for i, r in enumerate(labels) if r.get("ai_suggestion") in rank]
-    print(f"reviewer verdicts available for {len(have_ai)} of {len(labels)}\n")
-    if len(have_ai) == len(labels):
-        scores["AI reviewer"] = np.array([rank[r["ai_suggestion"]] for r in labels], dtype=float)
+    print(f"reviewer verdicts available for {len(have_ai)} of {len(labels)}")
+    # A row without a verdict scores below every row that has one, rather than
+    # being dropped: dropping it would compare the reviewer on a different set
+    # from the other two, which is the whole problem this script exists to fix.
+    scores["AI reviewer"] = np.array(
+        [rank[r["ai_suggestion"]] if r.get("ai_suggestion") in rank else -1 for r in labels],
+        dtype=float,
+    )
+    print()
 
     print(f"{'scorer':14s}{'AUC':>7}{'  recall at keep 10/20/30/50%':>34}")
     for name, s in scores.items():
