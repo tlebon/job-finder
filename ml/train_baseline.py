@@ -37,7 +37,11 @@ SEED = 0
 
 
 def load(path: str):
-    rows = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
+    # split("\n"), not splitlines(). Python also breaks lines on \x0b, \x0c,
+    # \x1c-\x1e, \x85, \u2028 and \u2029 - none of which JSON escapes, and all
+    # of which turn up in scraped job descriptions. splitlines() cut records in
+    # half mid-string and json.loads then failed on an unterminated string.
+    rows = [json.loads(line) for line in Path(path).read_text().split("\n") if line.strip()]
     rows = [r for r in rows if r.get("text") and len(r["text"]) > 100]
     print(f"{len(rows)} rows with usable text")
     if len(rows) < 200:
