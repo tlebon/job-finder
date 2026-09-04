@@ -145,50 +145,40 @@ export const filterConfig: FilterConfig = {
     /\belement\b/i,
     /\bmatrix\b/i,
   ],
+  // Target geography is Europe or the USA. The gate is deliberate - it keeps out
+  // Beijing, Tel Aviv, Singapore - but the previous list only named a dozen
+  // cities, so "San Francisco" with no country suffix failed to match and
+  // Perplexity's entire Bay Area engineering org was being rejected.
   includeLocations: [
-    // EU cities
-    /berlin/i,
-    /amsterdam/i,
-    /lisbon/i,
-    /dublin/i,
-    /barcelona/i,
-    /stockholm/i,
-    /vienna/i,
-    /munich/i,
-    /copenhagen/i,
-    /london/i,
-    /paris/i,
-    /zurich/i,
-    // EU countries
-    /\beu\b/i,
-    /europe/i,
-    /germany/i,
-    /netherlands/i,
-    /spain/i,
-    /portugal/i,
-    /ireland/i,
-    /\buk\b/i,
-    /united kingdom/i,
-    /switzerland/i,
-    /austria/i,
-    /france/i,
-    /italy/i,
-    /milan/i,
-    /belgium/i,
-    /brussels/i,
-    /madrid/i,
-    // Remote - general
-    /remote/i,
-    /distributed/i,
-    // Worldwide/Global
-    /worldwide/i,
-    /global/i,
-    /anywhere/i,
-    /international/i,
-    // US (remote ok, US-only requirements filtered separately)
-    /\bus\b/i,
-    /\busa\b/i,
-    /united states/i,
+    // Germany
+    /berlin/i, /munich|münchen/i, /hamburg/i, /frankfurt/i, /cologne|köln/i,
+    /stuttgart/i, /d(ü|ue)sseldorf/i, /leipzig/i, /dresden/i, /n(ü|ue)rnberg|nuremberg/i,
+    /jena/i, /karlsruhe/i, /germany|deutschland/i,
+    // Rest of Europe - cities
+    /amsterdam/i, /rotterdam/i, /utrecht/i, /eindhoven/i,
+    /lisbon|lisboa/i, /porto/i, /madrid/i, /barcelona/i, /valencia/i,
+    /paris/i, /lyon/i, /london/i, /manchester/i, /edinburgh/i, /cambridge/i, /oxford/i,
+    /dublin/i, /stockholm/i, /copenhagen/i, /oslo/i, /helsinki/i,
+    /vienna|wien/i, /zurich|z(ü|ue)rich/i, /geneva|gen(è|e)ve/i, /basel/i,
+    /brussels|bruxelles/i, /luxembourg/i, /milan|milano/i, /rome|roma/i,
+    /warsaw|warszawa/i, /krak(o|ó)w/i, /prague|praha/i, /budapest/i, /bucharest/i,
+    /sofia/i, /belgrade/i, /zagreb/i, /ljubljana/i, /tallinn/i, /riga/i, /vilnius/i,
+    /athens/i, /malta/i, /reykjav(i|í)k/i,
+    // Europe - countries and regions
+    /\beu\b/i, /europe/i, /\bemea\b/i,
+    /netherlands/i, /spain/i, /portugal/i, /ireland/i, /\buk\b/i, /united kingdom/i,
+    /switzerland/i, /austria/i, /france/i, /italy/i, /belgium/i, /poland/i,
+    /czech/i, /denmark/i, /sweden/i, /norway/i, /finland/i, /estonia/i, /latvia/i,
+    /lithuania/i, /greece/i, /romania/i, /bulgaria/i, /croatia/i, /slovenia/i, /serbia/i,
+    // USA - cities and metros (Tim is a US citizen, no sponsorship needed)
+    /san francisco|\bsf\b/i, /bay area/i, /palo alto/i, /mountain view/i, /berkeley/i,
+    /new york|\bnyc\b/i, /brooklyn/i, /boston/i, /cambridge, ma/i, /seattle/i,
+    /austin/i, /denver/i, /boulder/i, /chicago/i, /los angeles/i, /san diego/i,
+    /portland/i, /atlanta/i, /miami/i, /washington, ?dc/i, /pittsburgh/i,
+    // USA - country
+    /\bus\b/i, /\busa\b/i, /united states/i, /u\.s\./i,
+    // Remote / distributed
+    /remote/i, /distributed/i, /worldwide/i, /global/i, /anywhere/i, /international/i,
   ],
   excludeTitles: [
     // Too senior. Note "staff" must be qualified: "Member of Technical Staff" is
