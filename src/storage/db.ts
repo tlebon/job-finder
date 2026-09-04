@@ -49,6 +49,32 @@ try {
   // Columns already exist
 }
 
+// Add job cleanup tracking columns (migration).
+// No DEFAULT CURRENT_TIMESTAMP here: SQLite rejects ADD COLUMN with a
+// non-constant default, so the column is backfilled below instead.
+try {
+  db.exec(`ALTER TABLE jobs ADD COLUMN updated_at TEXT`);
+} catch {
+  // Column already exists
+}
+try {
+  db.exec(`ALTER TABLE jobs ADD COLUMN last_url_check TEXT`);
+} catch {
+  // Column already exists
+}
+try {
+  db.exec(`ALTER TABLE jobs ADD COLUMN check_failures INTEGER DEFAULT 0`);
+} catch {
+  // Column already exists
+}
+
+// Set updated_at = created_at for existing jobs
+try {
+  db.exec(`UPDATE jobs SET updated_at = created_at WHERE updated_at IS NULL`);
+} catch {
+  // Already migrated
+}
+
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
   CREATE INDEX IF NOT EXISTS idx_jobs_date_found ON jobs(date_found);

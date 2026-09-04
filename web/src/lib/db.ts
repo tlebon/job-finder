@@ -51,6 +51,32 @@ function getDb(): Database.Database {
     // Columns already exist
   }
 
+  // Add job cleanup tracking columns (migration).
+  // No DEFAULT CURRENT_TIMESTAMP here: SQLite rejects ADD COLUMN with a
+  // non-constant default, so the column is backfilled below instead.
+  try {
+    _db.exec(`ALTER TABLE jobs ADD COLUMN updated_at TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    _db.exec(`ALTER TABLE jobs ADD COLUMN last_url_check TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    _db.exec(`ALTER TABLE jobs ADD COLUMN check_failures INTEGER DEFAULT 0`);
+  } catch {
+    // Column already exists
+  }
+
+  // Set updated_at = created_at for existing jobs
+  try {
+    _db.exec(`UPDATE jobs SET updated_at = created_at WHERE updated_at IS NULL`);
+  } catch {
+    // Already migrated
+  }
+
   // Create index for common queries
   _db.exec(`
     CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
@@ -101,6 +127,15 @@ function getDb(): Database.Database {
     )
   `);
 
+  // Key/value app state (e.g. last_visited for the new-jobs summary)
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS app_state (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Job queue table (persist generation jobs)
   _db.exec(`
     CREATE TABLE IF NOT EXISTS job_queue (
@@ -126,6 +161,9 @@ const db = new Proxy({} as Database.Database, {
 
 export type AISuggestion = 'STRONG_FIT' | 'GOOD_FIT' | 'MAYBE' | 'AUTO_DISMISS';
 
+// Statuses hidden from the main job views but kept in the DB for audit
+const HIDDEN_STATUSES = "('DEAD', 'EXPIRED', 'ARCHIVED')";
+
 export interface Job {
   id: string;
   dateFound: string;
@@ -143,6 +181,9 @@ export interface Job {
   aiReviewed?: boolean;
   aiSuggestion?: AISuggestion;
   aiReasoning?: string;
+  updatedAt?: string;
+  lastUrlCheck?: string;
+  checkFailures?: number;
 }
 
 interface JobRow {
@@ -162,6 +203,9 @@ interface JobRow {
   ai_reviewed: number | null;
   ai_suggestion: string | null;
   ai_reasoning: string | null;
+  updated_at: string | null;
+  last_url_check: string | null;
+  check_failures: number | null;
 }
 
 function rowToJob(row: JobRow): Job {
@@ -182,11 +226,14 @@ function rowToJob(row: JobRow): Job {
     aiReviewed: row.ai_reviewed === 1,
     aiSuggestion: row.ai_suggestion as AISuggestion | undefined,
     aiReasoning: row.ai_reasoning || undefined,
+    updatedAt: row.updated_at || undefined,
+    lastUrlCheck: row.last_url_check || undefined,
+    checkFailures: row.check_failures || 0,
   };
 }
 
 export function getJobs(): Job[] {
-  const rows = db.prepare('SELECT * FROM jobs ORDER BY date_found DESC').all() as JobRow[];
+  const rows = db.prepare(`SELECT * FROM jobs WHERE status NOT IN ${HIDDEN_STATUSES} ORDER BY date_found DESC`).all() as JobRow[];
   return rows.map(rowToJob);
 }
 
@@ -319,9 +366,65 @@ export function getJobsByStatus(status: string): Job[] {
   return rows.map(rowToJob);
 }
 
+// Get hidden jobs (dead/expired/archived) for admin/audit view
+export function getDeadJobs(): Job[] {
+  const rows = db.prepare(`SELECT * FROM jobs WHERE status IN ${HIDDEN_STATUSES} ORDER BY updated_at DESC`).all() as JobRow[];
+  return rows.map(rowToJob);
+}
+
+// Archive jobs that have sat un-actioned past the age cutoff.
+// Only untouched statuses are archived — anything the user engaged with is kept.
+export function archiveStaleJobs(daysOld: number = 30): number {
+  const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
+
+  const result = db.prepare(`
+    UPDATE jobs
+    SET status = 'ARCHIVED', updated_at = ?
+    WHERE status IN ('NEW', 'PENDING')
+      AND date_found < ?
+  `).run(now, cutoff);
+
+  return result.changes;
+}
+
+// ============ APP STATE ============
+
+const LAST_VISITED_KEY = 'last_visited';
+const DEFAULT_LOOKBACK_DAYS = 7;
+
+// Server-side last-visited marker. Survives cleared browser data, incognito,
+// and switching device or browser — unlike the localStorage value it replaces.
+export function getLastVisited(): string {
+  const row = db.prepare('SELECT value FROM app_state WHERE key = ?').get(LAST_VISITED_KEY) as
+    | { value: string }
+    | undefined;
+
+  if (row) return row.value;
+
+  return new Date(Date.now() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+}
+
+export function setLastVisited(timestamp: string = new Date().toISOString()): void {
+  db.prepare(`
+    INSERT INTO app_state (key, value, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+  `).run(LAST_VISITED_KEY, timestamp, new Date().toISOString());
+}
+
+export function countStaleJobs(daysOld: number = 30): number {
+  const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000).toISOString();
+  const row = db.prepare(`
+    SELECT COUNT(*) as count FROM jobs
+    WHERE status IN ('NEW', 'PENDING') AND date_found < ?
+  `).get(cutoff) as { count: number };
+  return row.count;
+}
+
 // Get jobs added since a specific date (for summary feature)
 export function getJobsSince(since: string): Job[] {
-  const rows = db.prepare('SELECT * FROM jobs WHERE date_found > ? ORDER BY score DESC').all(since) as JobRow[];
+  const rows = db.prepare(`SELECT * FROM jobs WHERE date_found > ? AND status NOT IN ${HIDDEN_STATUSES} ORDER BY score DESC`).all(since) as JobRow[];
   return rows.map(rowToJob);
 }
 
@@ -331,6 +434,7 @@ export function getTopJobsSince(since: string, limit: number = 5): Job[] {
     SELECT * FROM jobs
     WHERE date_found > ?
       AND ai_suggestion IN ('STRONG_FIT', 'GOOD_FIT')
+      AND status NOT IN ${HIDDEN_STATUSES}
     ORDER BY
       CASE ai_suggestion
         WHEN 'STRONG_FIT' THEN 1

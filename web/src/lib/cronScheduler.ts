@@ -2,8 +2,11 @@ import cron, { ScheduledTask } from 'node-cron';
 import { spawn } from 'child_process';
 import path from 'path';
 import { scraperState, setScraperRunning } from './scraperState';
+import { archiveStaleJobs } from './db';
 
-let scheduledTask: ScheduledTask | null = null;
+const scheduledTasks: ScheduledTask[] = [];
+
+const ARCHIVE_AFTER_DAYS = Number(process.env.ARCHIVE_AFTER_DAYS) || 30;
 
 // Default: every 4 hours at minute 0
 const DEFAULT_CRON_SCHEDULE = '0 */4 * * *';
@@ -65,6 +68,37 @@ function runScraper(): Promise<void> {
   });
 }
 
+function runCleanup(): Promise<void> {
+  return new Promise((resolve) => {
+    const scraperDir = path.resolve(process.cwd(), '..');
+    console.log(`[Cron] Running dead link cleanup in directory: ${scraperDir}`);
+
+    const proc = spawn('npx', ['tsx', 'src/cleanup-deadlinks.ts', '--confirm', '--batch-size=50'], {
+      cwd: scraperDir,
+      env: { ...process.env },
+      shell: true,
+    });
+
+    proc.stdout.on('data', (data) => {
+      console.log('[Cron Cleanup]', data.toString());
+    });
+
+    proc.stderr.on('data', (data) => {
+      console.error('[Cron Cleanup Error]', data.toString());
+    });
+
+    proc.on('error', (err) => {
+      console.error('[Cron] Failed to start cleanup:', err);
+      resolve();
+    });
+
+    proc.on('close', (code) => {
+      console.log(`[Cron] Cleanup process exited with code ${code}`);
+      resolve();
+    });
+  });
+}
+
 export function initCronScheduler(): void {
   // Only run in production or if explicitly enabled
   if (process.env.NODE_ENV !== 'production' && !process.env.ENABLE_CRON_DEV) {
@@ -82,24 +116,44 @@ export function initCronScheduler(): void {
 
   console.log(`[Cron] Initializing scheduler with schedule: ${schedule}`);
 
-  scheduledTask = cron.schedule(schedule, async () => {
+  const timezone = process.env.TZ || 'UTC';
+
+  scheduledTasks.push(cron.schedule(schedule, async () => {
     console.log(`[Cron] Scheduled job triggered at ${new Date().toISOString()}`);
     try {
       await runScraper();
     } catch (error) {
       console.error('[Cron] Scheduled scraper run failed:', error);
     }
-  }, {
-    timezone: process.env.TZ || 'UTC',
-  });
+  }, { timezone }));
 
-  console.log('[Cron] Scheduler initialized successfully');
+  // Archive stale jobs daily at 3am
+  scheduledTasks.push(cron.schedule('0 3 * * *', () => {
+    try {
+      const archived = archiveStaleJobs(ARCHIVE_AFTER_DAYS);
+      console.log(`[Cron] Archived ${archived} jobs older than ${ARCHIVE_AFTER_DAYS} days`);
+    } catch (error) {
+      console.error('[Cron] Archiving failed:', error);
+    }
+  }, { timezone }));
+
+  // Dead-link cleanup weekly (Sunday at 2am)
+  scheduledTasks.push(cron.schedule('0 2 * * 0', async () => {
+    console.log(`[Cron] Scheduled cleanup triggered at ${new Date().toISOString()}`);
+    try {
+      await runCleanup();
+    } catch (error) {
+      console.error('[Cron] Scheduled cleanup failed:', error);
+    }
+  }, { timezone }));
+
+  console.log('[Cron] Scheduler initialized (scraper + daily archive + weekly cleanup)');
 }
 
 export function stopCronScheduler(): void {
-  if (scheduledTask) {
-    scheduledTask.stop();
-    scheduledTask = null;
-    console.log('[Cron] Scheduler stopped');
+  for (const task of scheduledTasks) {
+    task.stop();
   }
+  scheduledTasks.length = 0;
+  console.log('[Cron] Scheduler stopped');
 }
