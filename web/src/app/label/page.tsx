@@ -86,15 +86,15 @@ export default function LabelPage() {
 
   const pct = progress.total ? Math.round((progress.labelled / progress.total) * 100) : 0;
 
-  if (loading) return <main className="p-8 text-[var(--muted)]">Loading…</main>;
+  if (loading) return <main className="p-8 text-[var(--ink-muted)]">Loading…</main>;
 
   if (!current) {
     return (
       <main className="mx-auto max-w-2xl p-8">
         <h1 className="text-2xl font-semibold">Nothing left to label</h1>
-        <p className="mt-3 text-[var(--muted)]">
+        <p className="mt-3 text-[var(--ink-muted)]">
           {progress.labelled} of {progress.total} done. Run
-          {' '}<code className="rounded bg-black/20 px-1.5 py-0.5">npx tsx src/eval-gate-vs-human.ts</code>{' '}
+          {' '}<code className="rounded bg-[var(--cream-dark)] px-1.5 py-0.5 font-mono text-sm">npx tsx src/eval-gate-vs-human.ts</code>{' '}
           to score the gate against these.
         </p>
       </main>
@@ -104,18 +104,18 @@ export default function LabelPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col p-4 sm:p-6">
       <header className="mb-4">
-        <div className="flex items-baseline justify-between text-sm text-[var(--muted)]">
+        <div className="flex items-baseline justify-between text-sm text-[var(--ink-muted)]">
           <span>Would you open this and consider applying?</span>
           <span className="tabular-nums">{progress.labelled} / {progress.total} · {pct}%</span>
         </div>
-        <div className="mt-2 h-1 w-full overflow-hidden rounded bg-black/20">
-          <div className="h-full bg-[var(--accent,#6ee7b7)] transition-all" style={{ width: `${pct}%` }} />
+        <div className="mt-2 h-1 w-full overflow-hidden rounded bg-[var(--border)]">
+          <div className="h-full bg-[var(--accent)] transition-all" style={{ width: `${pct}%` }} />
         </div>
       </header>
 
-      <article className="flex-1 overflow-auto rounded-lg border border-[var(--border)] p-4 sm:p-6">
+      <article className="flex-1 overflow-auto rounded-lg border border-[var(--border)] bg-[var(--cream)] p-4 sm:p-6">
         <h1 className="text-xl font-semibold sm:text-2xl">{current.title}</h1>
-        <p className="mt-1 text-[var(--muted)]">
+        <p className="mt-1 text-[var(--ink-muted)]">
           {current.company} · {current.location}
         </p>
         {current.description.length < 800 && (
@@ -124,7 +124,7 @@ export default function LabelPage() {
              same fragment, so they stay in the sample rather than being quietly
              dropped, but you should know when you are deciding on a summary.
              Skip is the right answer when the fragment does not tell you. */
-          <p className="mt-4 rounded border border-amber-600/40 bg-amber-600/10 px-3 py-2 text-sm text-amber-200/90">
+          <p className="mt-4 rounded border border-[var(--accent)]/30 bg-[var(--warning-light)] px-3 py-2 text-sm text-[var(--warning)]">
             Short listing - this is everything the source provides, usually the
             first 500 characters. Press <strong>s</strong> to skip if you cannot
             judge it; skipped items are excluded rather than counted as no.
@@ -137,15 +137,15 @@ export default function LabelPage() {
 
       <footer className="mt-4 flex flex-wrap items-center gap-2">
         <button onClick={() => void decide(1)} disabled={saving}
-          className="rounded-md bg-emerald-600 px-4 py-2 font-medium text-white disabled:opacity-50">
+          className="rounded-md bg-[var(--success)] px-4 py-2 font-medium text-[var(--cream)] disabled:opacity-50">
           Yes <span className="opacity-70">(y)</span>
         </button>
         <button onClick={() => void decide(0)} disabled={saving}
-          className="rounded-md bg-rose-700 px-4 py-2 font-medium text-white disabled:opacity-50">
+          className="rounded-md bg-[#9F1239] px-4 py-2 font-medium text-[var(--cream)] disabled:opacity-50">
           No <span className="opacity-70">(n)</span>
         </button>
         <button onClick={() => void decide(null)} disabled={saving}
-          className="rounded-md border border-[var(--border)] px-4 py-2">
+          className="rounded-md border border-[var(--border)] bg-[var(--cream-dark)] px-4 py-2">
           Skip <span className="opacity-70">(s)</span>
         </button>
         <button onClick={() => void undo()} disabled={!history.length}
