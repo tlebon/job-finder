@@ -13,6 +13,20 @@
  * Usage:
  *   npx tsx src/build-label-sample.ts --dry-run
  *   npx tsx src/build-label-sample.ts --confirm [--target=300] [--floor=8]
+ *   npx tsx src/build-label-sample.ts --from=rejects --confirm [--target=200]
+ *
+ * --from=rejects draws a second batch out of rejected_jobs, which the first
+ * batch could not reach because rejects were not stored then. It skips the
+ * rules that reject on job function - account executive, recruiting, marketing,
+ * design, product management, legal, customer success - which were measured
+ * against Tim's own labels at zero false negatives over 43 matches. Spending
+ * fifteen seconds each to confirm those again buys nothing.
+ *
+ * What it keeps is where the gate actually loses: the 1,522 rejected for no
+ * reason beyond failing to match a pass rule, and the rules that reject on
+ * level or stack, which were 25-33% wrong. Strata are bands of model score, so
+ * the uncertain middle is sampled more heavily than the confident ends - each
+ * with its own recorded probability, so estimates still weight back.
  */
 
 import { createHash } from 'node:crypto';
@@ -21,6 +35,8 @@ import { fetchAllJobs } from './sources/index.js';
 import { filterJob } from './filters/jobFilter.js';
 import { cleanJobDescription } from './utils/jobText.js';
 import { insertLabelRows, labelProgress } from './storage/labelSample.js';
+import { db } from './storage/db.js';
+import { scoreJob } from './model/score.js';
 import type { RawJob } from './types.js';
 
 config({ quiet: true });
@@ -31,6 +47,78 @@ const arg = (n: string, d: number) =>
 const target = arg('target', 300);
 const floor = arg('floor', 8);
 const confirm = process.argv.includes('--confirm');
+
+const fromRejects = process.argv.includes('--from=rejects');
+
+/**
+ * Rules that reject on what the job *is*. Measured at zero false negatives over
+ * 43 of Tim's labels, so re-confirming them costs his attention for nothing.
+ * Rules about seniority or stack are deliberately absent: /staff .../ was 33%
+ * wrong and Backend-only 25% wrong, which is exactly what needs labelling.
+ */
+const FUNCTION_RULES = /(account executive|account manager|\\bsales\\b|business development|\\bmarket(ing|er)\\b|\\brecruiter\\b|customer success|\\bcounsel\\b|product designer|\\bit support\\b|head of)/i;
+
+if (fromRejects) {
+  const rows = db.prepare(`
+    SELECT url, title, company, location, description, source, score, reason
+    FROM rejected_jobs
+    WHERE LENGTH(description) > 400
+      AND url NOT IN (SELECT url FROM label_sample)
+  `).all() as {
+    url: string; title: string; company: string; location: string;
+    description: string; source: string; score: number; reason: string;
+  }[];
+
+  const worth = rows.filter(r => !FUNCTION_RULES.test(r.reason));
+  console.log(`${rows.length} stored rejects, ${worth.length} after skipping the function rules`);
+
+  // Bands of model score: the middle is where a label changes a decision, the
+  // ends are where it merely confirms one.
+  const band = (p: number) =>
+    p < 0.05 ? 'confident-no' : p < 0.15 ? 'low' : p < 0.35 ? 'uncertain' : 'high';
+  const share: Record<string, number> = { 'confident-no': 0.1, low: 0.25, uncertain: 0.45, high: 0.2 };
+
+  const strata = new Map<string, typeof worth>();
+  for (const r of worth) {
+    const p = scoreJob({ title: r.title, description: r.description, source: r.source }).probability;
+    const key = band(p);
+    if (!strata.has(key)) strata.set(key, []);
+    strata.get(key)!.push(r);
+  }
+
+  console.log('\nband           population  sampled  p(draw)');
+  const picked: Parameters<typeof insertLabelRows>[0] = [];
+  for (const [key, pool] of strata) {
+    const take = Math.min(pool.length, Math.round(target * (share[key] ?? 0.25)));
+    const prob = take / pool.length;
+    console.log(`${key.padEnd(14)}${String(pool.length).padStart(11)}${String(take).padStart(9)}   ${prob.toFixed(3)}`);
+    for (const r of [...pool].sort(() => Math.random() - 0.5).slice(0, take)) {
+      picked.push({
+        id: `ls_${createHash('sha1').update(r.url).digest('hex').slice(0, 24)}`,
+        source: r.source, title: r.title, company: r.company,
+        location: r.location || 'Not stated',
+        description: r.description, url: r.url,
+        gate_passed: 0, regex_score: r.score,
+        stratum: `reject|${key}`, sampling_prob: prob, stratum_size: pool.length,
+        display_order: 0,
+      });
+    }
+  }
+
+  const existing = db.prepare('SELECT MAX(display_order) m FROM label_sample').get() as { m: number | null };
+  const start = (existing.m ?? 0) + 1;
+  [...picked].sort(() => Math.random() - 0.5).forEach((row, i) => { row.display_order = start + i; });
+
+  console.log(`\nTotal to add: ${picked.length}`);
+  if (!confirm) {
+    console.log('DRY RUN: pass --confirm to write.');
+    process.exit(0);
+  }
+  const n = insertLabelRows(picked);
+  const p2 = labelProgress();
+  console.log(`Added ${n}. Queue now ${p2.labelled}/${p2.total} labelled.`);
+  process.exit(0);
+}
 
 console.log('Fetching all sources...');
 const all = await fetchAllJobs();
