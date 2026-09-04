@@ -109,6 +109,11 @@ Be conservative with AUTO_DISMISS - only use it for obvious mismatches. When in 
       jsonText = jsonMatch[0];
     }
 
+    // The model writes a signed adjustment the way a person would - "+20" - and
+    // JSON has no leading plus, so the whole batch threw and fell back to MAYBE.
+    // A batch that fails this way still looks reviewed, so it never comes back.
+    jsonText = jsonText.replace(/:\s*\+(\d)/g, ': $1');
+
     const results = JSON.parse(jsonText) as BatchReviewResult[];
 
     // Validate and fix results

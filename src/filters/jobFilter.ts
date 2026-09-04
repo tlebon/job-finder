@@ -75,8 +75,19 @@ function requiresRelocation(location: string, description: string): boolean {
   return false;
 }
 
-function isBackendOnly(title: string, _description: string): boolean {
+/**
+ * Written when the target was frontend-only. It is now actively harmful for
+ * half the target: ML engineering *is* backend work, and this rejected
+ * "Member of Technical Staff, Backend Platform" at Perplexity along with most
+ * inference, training-infrastructure and data-platform roles. It still earns
+ * its keep against plain Java/Ruby/.NET CRUD, so it is now scoped to jobs that
+ * show no ML or LLM signal at all.
+ */
+function isBackendOnly(title: string, description: string): boolean {
   const titleLower = title.toLowerCase();
+
+  const cats = matchedTechCategories(`${title} ${description}`);
+  if (cats.includes('ml') || cats.includes('llm')) return false;
 
   // Check if title explicitly says "backend" or "back end" or "back-end"
   const hasBackendInTitle = /\b(backend|back-end|back end)\b/i.test(title);
@@ -165,6 +176,16 @@ export function filterJob(job: RawJob): FilterResult {
   }
 
   // Check if backend-only
+  const outOfRange = matchesAny(location, filterConfig.excludeLocations);
+  if (outOfRange.length > 0) {
+    return {
+      passed: false,
+      score: 0,
+      matchedCriteria: [`EXCLUDED: Outside Europe/USA (${outOfRange.join(', ')})`],
+      categories: [],
+    };
+  }
+
   if (isBackendOnly(title, description)) {
     return {
       passed: false,

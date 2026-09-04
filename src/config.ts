@@ -151,6 +151,25 @@ export const filterConfig: FilterConfig = {
     /mullvad/i,
     /\bduckduckgo\b/i,
   ],
+  /**
+   * Checked before includeLocations. The remote terms below are permissive by
+   * design - "Remote" alone should pass - but they also passed roles in Tokyo,
+   * Bengaluru and Dubai that happened to say "remote", because a match anywhere
+   * in the location string was enough. Naming what is out of range first closes
+   * that, without narrowing what "remote" means for everyone else.
+   */
+  excludeLocations: [
+    /\b(china|japan|korea|singapore|hong kong|taiwan|thailand|vietnam|malaysia|philippines|indonesia)\b/i,
+    /\b(india|pakistan|bangladesh|sri lanka)\b/i,
+    /\b(bengaluru|bangalore|mumbai|delhi|hyderabad|pune|chennai|noida|gurgaon|gurugram)\b/i,
+    /\b(tokyo|osaka|seoul|shanghai|beijing|shenzhen|taipei|bangkok|jakarta|manila|ho chi minh)\b/i,
+    /\b(dubai|abu dhabi|\buae\b|united arab emirates|qatar|doha|saudi|riyadh|israel|tel aviv)\b/i,
+    /\b(australia|new zealand|sydney|melbourne|auckland)\b/i,
+    /\b(brazil|argentina|chile|colombia|mexico|peru|s(a|ã)o paulo|buenos aires|bogot(a|á))\b/i,
+    /\b(nigeria|kenya|egypt|south africa|lagos|nairobi|cairo|johannesburg|cape town)\b/i,
+    /\b(canada|toronto|vancouver|montreal|ottawa)\b/i,
+  ],
+
   // Target geography is Europe or the USA. The gate is deliberate - it keeps out
   // Beijing, Tel Aviv, Singapore - but the previous list only named a dozen
   // cities, so "San Francisco" with no country suffix failed to match and

@@ -265,3 +265,41 @@ test('a genuine privacy company still earns the domain bonus', () => {
   const r = filterJob(job({ company: 'Proton AG', description: 'React and TypeScript.' }));
   assert.ok(r.matchedCriteria.some(c => c.startsWith('Domain:')), 'Proton should match on company');
 });
+
+// --- geography ---------------------------------------------------------------
+// The remote terms are permissive on purpose - "Remote" alone should pass - but
+// a match anywhere in the string also passed roles in Tokyo, Bengaluru and Dubai
+// that happened to say "remote".
+
+test('remote roles outside Europe and the USA are rejected', () => {
+  for (const location of ['Remote - Tokyo, Japan', 'Bengaluru, India (Remote)', 'Dubai, UAE - Remote', 'Remote, Toronto, Canada']) {
+    const r = filterJob(job({ title: 'Machine Learning Engineer', location, description: 'PyTorch and LLM work.' }));
+    assert.equal(r.passed, false, `"${location}" should be rejected: ${r.matchedCriteria.join(' | ')}`);
+  }
+});
+
+test('genuinely remote roles in range still pass', () => {
+  for (const location of ['Remote', 'Remote - Europe', 'Remote (US)', 'Remote - Berlin']) {
+    const r = filterJob(job({ title: 'Machine Learning Engineer', location, description: 'PyTorch and LLM work.' }));
+    assert.equal(r.passed, true, `"${location}" should pass: ${r.matchedCriteria.join(' | ')}`);
+  }
+});
+
+// --- backend is not disqualifying for ML work --------------------------------
+// The rule was written when the target was frontend-only. ML engineering is
+// backend work, and this rejected Perplexity's MTS Backend Platform outright.
+
+test('backend roles with ML signal are not excluded', () => {
+  for (const title of ['Member of Technical Staff, Backend Platform', 'Backend Engineer, Inference', 'Python Developer, ML Platform']) {
+    const r = filterJob(job({ title, description: 'PyTorch, LLM inference, model serving at scale.', location: 'Berlin, Germany' }));
+    assert.ok(
+      !r.matchedCriteria.some(c => c.includes('Backend-only')),
+      `"${title}" should not be excluded as backend-only`
+    );
+  }
+});
+
+test('plain backend CRUD is still excluded', () => {
+  const r = filterJob(job({ title: 'Senior Java Developer', description: 'Spring Boot, Hibernate, Oracle, REST APIs.' }));
+  assert.ok(r.matchedCriteria.some(c => c.includes('Backend-only')), `criteria: ${r.matchedCriteria.join(' | ')}`);
+});
