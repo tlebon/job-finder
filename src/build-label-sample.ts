@@ -15,6 +15,7 @@
  *   npx tsx src/build-label-sample.ts --confirm [--target=300] [--floor=8]
  */
 
+import { createHash } from 'node:crypto';
 import { config } from 'dotenv';
 import { fetchAllJobs } from './sources/index.js';
 import { filterJob } from './filters/jobFilter.js';
@@ -74,7 +75,11 @@ for (const [stratum, pool] of strata) {
   const shuffled = [...pool].sort(() => Math.random() - 0.5);
   for (const c of shuffled.slice(0, take)) {
     picked.push({
-      id: `ls_${Buffer.from(c.job.url).toString('base64url').slice(0, 40)}`,
+      // Hashed, not truncated. This was base64 of the URL cut to 40 characters,
+      // and every Greenhouse or Ashby posting shares that prefix - so INSERT OR
+      // IGNORE silently collapsed 291 sampled rows into 41, leaving a subset
+      // that was no longer the stratified draw it reported being.
+      id: `ls_${createHash('sha1').update(c.job.url).digest('hex').slice(0, 24)}`,
       source: c.job.source,
       title: c.job.title,
       company: c.job.company,
