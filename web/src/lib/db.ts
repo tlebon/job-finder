@@ -65,6 +65,30 @@ function getDb(): Database.Database {
   // the only ground-truth labels here - the reviewer agrees with itself on just
   // 50% of re-reviews, so its own verdicts cannot serve as truth.
   // Separate try blocks: one failure inside a shared block skips the rest.
+  // The human-labelled evaluation set. Created here as well as in the scraper's
+  // storage layer, so the labelling UI works on a fresh database without
+  // waiting for a scrape.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS label_sample (
+      id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      source TEXT NOT NULL,
+      title TEXT NOT NULL,
+      company TEXT NOT NULL,
+      location TEXT NOT NULL,
+      description TEXT NOT NULL,
+      url TEXT NOT NULL,
+      gate_passed INTEGER NOT NULL,
+      regex_score INTEGER NOT NULL,
+      stratum TEXT NOT NULL,
+      sampling_prob REAL NOT NULL,
+      stratum_size INTEGER NOT NULL,
+      human_label INTEGER,
+      labelled_at TEXT,
+      display_order INTEGER NOT NULL
+    )
+  `);
+
   try {
     _db.exec(`ALTER TABLE jobs ADD COLUMN status_source TEXT`);
   } catch {

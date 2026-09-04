@@ -44,7 +44,7 @@ export interface FilterConfig {
   techCategories: Record<string, RegExp[]>;
   includeCompanyTypes: RegExp[];
   includeLocations: RegExp[];
-  excludeLocations: RegExp[];
+  farLocations: RegExp[];
   excludeTitles: RegExp[];
   boostKeywords: RegExp[];
 }

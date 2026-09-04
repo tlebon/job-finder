@@ -36,16 +36,17 @@ interface Row {
   ai_suggestion: string; score: number; ai_score_adjustment: number | null;
 }
 
-// Only jobs whose adjustment was recorded separately. Where it was not, the
-// stored score still contains it, so the verdict is baked into the number being
-// evaluated against that verdict - the baseline then measures leakage, not
-// skill, and reads far higher than any honest scorer can.
+// Every labelled job. The leak is in the *stored* score - where the adjustment
+// was never recorded separately it is still baked into the number, so the
+// verdict leaks into anything evaluated against that verdict. It does not touch
+// the freshly recomputed score, which comes from raw text and carries no
+// adjustment at all. Restricting both columns needlessly threw away more than
+// half the rows from the honest baseline.
 const rows = db.prepare(`
   SELECT title, company, location, url, description, source,
          ai_suggestion, score, ai_score_adjustment
   FROM jobs
   WHERE ai_reviewed = 1 AND ai_suggestion IS NOT NULL
-    AND ai_score_adjustment IS NOT NULL
 `).all() as Row[];
 
 const leaked = db.prepare(`
@@ -59,15 +60,24 @@ console.log(`${rows.length} AI-reviewed jobs\n`);
 const scored = rows.map(r => ({
   verdict: r.ai_suggestion,
   stored: r.score - (r.ai_score_adjustment ?? 0),
+  hasAdjustment: r.ai_score_adjustment !== null,
   fresh: filterJob(r as unknown as RawJob).score,
 }));
 
 const good = (v: string) => v === 'STRONG_FIT' || v === 'GOOD_FIT';
 
-/** Probability a random good job outscores a random dismissed one; ties count half. */
-function auc(pick: (s: typeof scored[number]) => number): number {
-  const pos = scored.filter(s => good(s.verdict)).map(pick);
-  const neg = scored.filter(s => s.verdict === 'AUTO_DISMISS').map(pick);
+/**
+ * Probability a random good job outscores a random not-good one; ties count half.
+ *
+ * "Not good" is everything else, MAYBE included. This previously compared good
+ * against AUTO_DISMISS alone, dropping MAYBE entirely - an easier problem than
+ * the one a gate faces, and a different one from what any model trained on a
+ * binary good/not-good column would be scored on. The two numbers were not
+ * comparable.
+ */
+function auc(pick: (s: typeof scored[number]) => number, set = scored): number {
+  const pos = set.filter(s => good(s.verdict)).map(pick);
+  const neg = set.filter(s => !good(s.verdict)).map(pick);
   if (!pos.length || !neg.length) return NaN;
   let wins = 0;
   for (const p of pos) for (const n of neg) wins += p > n ? 1 : p === n ? 0.5 : 0;
@@ -80,16 +90,21 @@ function quantiles(values: number[]): string {
   return `n=${String(v.length).padStart(4)}  p25 ${String(q(0.25)).padStart(4)}  median ${String(q(0.5)).padStart(4)}  p75 ${String(q(0.75)).padStart(4)}`;
 }
 
+// The stored column is only meaningful where the adjustment was recorded.
+const cleanStored = scored.filter(s => s.hasAdjustment);
+console.log(`stored-score baseline uses ${cleanStored.length} rows with a recoverable base score\n`);
+
 for (const [label, pick] of [
   ['stored (score as it sits in the database)', (s: typeof scored[number]) => s.stored],
   ['fresh  (recomputed with current code)   ', (s: typeof scored[number]) => s.fresh],
 ] as const) {
-  console.log(`--- ${label} ---`);
+  const set = label.startsWith('stored') ? cleanStored : scored;
+  console.log(`--- ${label} (n=${set.length}) ---`);
   for (const v of ['STRONG_FIT', 'GOOD_FIT', 'MAYBE', 'AUTO_DISMISS']) {
-    const vals = scored.filter(s => s.verdict === v).map(pick);
+    const vals = set.filter(s => s.verdict === v).map(pick);
     if (vals.length) console.log(`  ${v.padEnd(13)} ${quantiles(vals)}`);
   }
-  console.log(`  AUC good-vs-dismissed: ${auc(pick).toFixed(3)}   (0.50 = coin flip)\n`);
+  console.log(`  AUC good-vs-rest: ${auc(pick, set).toFixed(3)}   (0.50 = coin flip)\n`);
 }
 
 // The distinction that actually matters when reading the list: is the job worth

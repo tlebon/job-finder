@@ -82,8 +82,18 @@ function requiresRelocation(location: string, description: string): boolean {
   // Check if location is a US city/state
   const isUSLocation = usCities.test(locationLower) || usStates.test(locationLower);
 
-  // Check if remote is mentioned
-  const hasRemote = /\b(remote|distributed|work from home|wfh|anywhere|worldwide|global)\b/i.test(fullText);
+  // Remote has to be claimed about the *job*, not spotted anywhere in the text.
+  // Reading the whole description for /\bdistributed\b/ meant "distributed
+  // systems" cleared a San Francisco role of needing relocation, and /\bglobal\b/
+  // did the same for "global customers". The location field is the reliable
+  // signal; in the description only explicit phrases count.
+  const remoteInLocation = /\b(remote|anywhere|worldwide|distributed)\b/i.test(locationLower);
+  const remoteInDescription =
+    /\b(fully|100%|entirely)\s+remote\b/i.test(description) ||
+    /\bremote[- ](first|friendly|only)\b/i.test(description) ||
+    /\bwork from (home|anywhere)\b/i.test(description) ||
+    /\bwfh\b/i.test(description);
+  const hasRemote = remoteInLocation || remoteInDescription;
 
   // Exclude if US location WITHOUT remote option
   if (isUSLocation && !hasRemote) {
@@ -198,16 +208,10 @@ export function filterJob(job: RawJob): FilterResult {
     };
   }
 
-  // Check if backend-only
-  const outOfRange = matchesAny(location, filterConfig.excludeLocations);
-  if (outOfRange.length > 0) {
-    return {
-      passed: false,
-      score: 0,
-      matchedCriteria: [`EXCLUDED: Outside Europe/USA (${outOfRange.join(', ')})`],
-      categories: [],
-    };
-  }
+  // Far from Berlin is a relocation question, not a rejection: Tim will move
+  // anywhere for the right role with relocation support. Sampling what this
+  // rule rejected surfaced a STRONG_FIT at a Korean AI-safety lab.
+  const isFar = matchesAny(location, filterConfig.farLocations).length > 0;
 
   if (isBackendOnly(title, description)) {
     return {
@@ -218,7 +222,9 @@ export function filterJob(job: RawJob): FilterResult {
     };
   }
 
-  const needsRelocation = requiresRelocation(location, description);
+  // A far location always means a move, even when the posting says "remote":
+  // "Remote - Tokyo, Japan" is remote within Japan, not remote from Berlin.
+  const needsRelocation = isFar || requiresRelocation(location, description);
 
   // Check title matches
   const titleMatches = matchesAny(title, filterConfig.includeTitles);
@@ -265,6 +271,13 @@ export function filterJob(job: RawJob): FilterResult {
     score += 5;
   }
 
+  // The pass rules all require a known location, and includeLocations only
+  // names Europe and the USA - so without this a Seoul role fails the gate even
+  // though it is now merely flagged rather than excluded. A far location is a
+  // known location; it earns no proximity bonus, only the relocation flag.
+  const locationKnown = locationMatches.length > 0 || isFar;
+  if (isFar) matchedCriteria.push('Location: outside Europe/USA, relocation');
+
   // Boost Berlin jobs (no relocation needed)
   if (/berlin/i.test(location)) {
     matchedCriteria.push('Berlin bonus');
@@ -283,14 +296,14 @@ export function filterJob(job: RawJob): FilterResult {
   // Pass criteria (any of these):
 
   // 1. Title match + location match (traditional)
-  const titleAndLocation = titleMatches.length > 0 && locationMatches.length > 0;
+  const titleAndLocation = titleMatches.length > 0 && locationKnown;
 
   // A title either on the whitelist or simply shaped like engineering work.
   // Non-engineering roles are carved out by excludeTitles, which is extensive.
   // 2. Domain match (blockchain/privacy company with relevant tech)
   const domainMatch =
     techCats.length > 0 && companyTypeMatches.length > 0 &&
-    locationMatches.length > 0 && titleIsTechnical;
+    locationKnown && titleIsTechnical;
 
   // 3. LENIENT: 2+ distinct tech categories + location, but still requires a
   // recognised title. Without that clause, every posting at an AI company
@@ -298,7 +311,7 @@ export function filterJob(job: RawJob): FilterResult {
   // Director, Revenue Accounting both matched llm+ml from the company blurb.
   // Those all scored exactly 30, the signature of zero title match.
   const strongTechMatch =
-    techCats.length >= 2 && locationMatches.length > 0 && titleIsTechnical;
+    techCats.length >= 2 && locationKnown && titleIsTechnical;
 
   if (needsRelocation) {
     matchedCriteria.push('Requires relocation (US on-site)');
