@@ -2,7 +2,7 @@
 /**
  * Does the pipeline surface the jobs Tim picked himself?
  *
- * data/shortlist.json holds companies he had open in his browser - jobs he chose
+ * src/eval/shortlist.json holds companies he had open in his browser - jobs he chose
  * without the tool's help. They are the only ground-truth positives here. The AI
  * reviewer agrees with its own earlier verdict about half the time, so its
  * verdicts measure consistency, not correctness; these measure correctness.
@@ -15,6 +15,8 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
 import { db } from './storage/db.js';
 
@@ -22,7 +24,12 @@ config({ quiet: true });
 
 interface Entry { company: string; role: string | null; via: string }
 
-const { entries } = JSON.parse(readFileSync('data/shortlist.json', 'utf8')) as { entries: Entry[] };
+// Resolved from this module, not the working directory: in production /app/data
+// is the mounted volume holding jobs.db, which shadows the repo's data/ folder.
+const here = dirname(fileURLToPath(import.meta.url));
+const { entries } = JSON.parse(
+  readFileSync(join(here, 'eval', 'shortlist.json'), 'utf8')
+) as { entries: Entry[] };
 
 const find = db.prepare(`
   SELECT title, company, source, status, score, ai_suggestion
