@@ -35,6 +35,30 @@ export const ATS_COMPANIES: AtsCompany[] = [
   { platform: 'greenhouse', slug: 'anthropic', name: 'Anthropic' },
   { platform: 'greenhouse', slug: 'proton', name: 'Proton' },
   { platform: 'lever', slug: 'metr', name: 'METR' },
+
+  // AI dev tools and infrastructure - the applied-AI engineering target
+  { platform: 'ashby', slug: 'modal', name: 'Modal' },
+  { platform: 'ashby', slug: 'baseten', name: 'Baseten' },
+  { platform: 'ashby', slug: 'fireworks', name: 'Fireworks AI' },
+  { platform: 'ashby', slug: 'langchain', name: 'LangChain' },
+  { platform: 'ashby', slug: 'llamaindex', name: 'LlamaIndex' },
+  { platform: 'ashby', slug: 'cursor', name: 'Cursor (Anysphere)' },
+
+  // AI products
+  { platform: 'ashby', slug: 'elevenlabs', name: 'ElevenLabs' },
+  { platform: 'ashby', slug: 'parloa', name: 'Parloa' },        // Berlin
+  { platform: 'ashby', slug: 'supabase', name: 'Supabase' },
+  { platform: 'ashby', slug: 'linear', name: 'Linear' },
+  { platform: 'greenhouse', slug: 'vercel', name: 'Vercel' },
+
+  // AI safety research
+  { platform: 'lever', slug: 'apolloresearch', name: 'Apollo Research' },
+
+  // Science and biotech engineering - the pharma-chemistry intersection that
+  // produced the Apheris application
+  { platform: 'greenhouse', slug: 'ginkgobioworks', name: 'Ginkgo Bioworks' },
+  { platform: 'greenhouse', slug: 'recursionpharmaceuticals', name: 'Recursion' },
+  { platform: 'greenhouse', slug: 'isomorphiclabs', name: 'Isomorphic Labs' },
 ];
 
 // Only verified slugs above - an unverified guess is a board that silently

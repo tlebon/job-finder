@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { CategoryFilter, CATEGORY_LABELS, categoryChipClass } from '@/components/CategoryFilter';
 import Link from 'next/link';
 
 type AISuggestion = 'STRONG_FIT' | 'GOOD_FIT' | 'MAYBE' | 'AUTO_DISMISS';
@@ -19,6 +20,8 @@ interface Job {
   aiReviewed?: boolean;
   aiSuggestion?: AISuggestion;
   aiReasoning?: string;
+  categories?: string[];
+  requiresRelocation?: boolean;
 }
 
 type SortOption = 'ai' | 'score' | 'date' | 'company';
@@ -38,6 +41,8 @@ export default function CandidatesPage() {
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState<{ completed: number; total: number; pending: number; job?: string }>({ completed: 0, total: 0, pending: 0 });
   const [sortBy, setSortBy] = useState<SortOption>('ai');
+  const [activeCategories, setActiveCategories] = useState<Set<string>>(new Set());
+  const [hideRelocation, setHideRelocation] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [reviewProgress, setReviewProgress] = useState<{ total: number; completed: number; currentJob: string }>({ total: 0, completed: 0, currentJob: '' });
   const [reviewSummary, setReviewSummary] = useState<{ strongFit: number; goodFit: number; maybe: number; autoDismiss: number } | null>(null);
@@ -146,7 +151,41 @@ export default function CandidatesPage() {
   }, [fetchCandidates, checkBatchStatus, checkAIReviewStatus]);
 
   // Sort jobs based on selected option
-  const sortedJobs = [...jobs].sort((a, b) => {
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const job of jobs) {
+      for (const c of job.categories || []) counts[c] = (counts[c] || 0) + 1;
+    }
+    return counts;
+  }, [jobs]);
+
+  const relocationCount = useMemo(
+    () => jobs.filter(j => j.requiresRelocation).length,
+    [jobs]
+  );
+
+  // A job matches if it carries ANY selected category: selecting ML and LLM
+  // widens the list rather than narrowing to jobs that are both.
+  const visibleJobs = useMemo(() => jobs.filter(job => {
+    if (hideRelocation && job.requiresRelocation) return false;
+    if (activeCategories.size === 0) return true;
+    return (job.categories || []).some(c => activeCategories.has(c));
+  }), [jobs, activeCategories, hideRelocation]);
+
+  const toggleCategory = (cat: string) => {
+    setActiveCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat); else next.add(cat);
+      return next;
+    });
+  };
+
+  const clearFilters = () => {
+    setActiveCategories(new Set());
+    setHideRelocation(false);
+  };
+
+  const sortedJobs = [...visibleJobs].sort((a, b) => {
     switch (sortBy) {
       case 'ai':
         // Sort by AI suggestion first (Strong > Good > Maybe > Auto-dismiss > Not reviewed)
@@ -178,11 +217,13 @@ export default function CandidatesPage() {
     });
   };
 
+  // Acts on the filtered view: with ML selected, "select all" should not
+  // silently include the frontend jobs the filter is hiding.
   const toggleAll = () => {
-    if (selected.size === jobs.length) {
+    if (selected.size === sortedJobs.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(jobs.map(j => j.id)));
+      setSelected(new Set(sortedJobs.map(j => j.id)));
     }
   };
 
@@ -425,6 +466,22 @@ export default function CandidatesPage() {
           </div>
         ) : (
           <>
+            <CategoryFilter
+              counts={categoryCounts}
+              active={activeCategories}
+              onToggle={toggleCategory}
+              onClear={clearFilters}
+              relocationCount={relocationCount}
+              hideRelocation={hideRelocation}
+              onToggleRelocation={() => setHideRelocation(v => !v)}
+            />
+
+            {(activeCategories.size > 0 || hideRelocation) && (
+              <p className="text-xs text-[var(--ink-muted)] mb-3">
+                Showing {sortedJobs.length} of {jobs.length}
+              </p>
+            )}
+
             {/* Toolbar: Select All + Sort */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mb-4 pb-4 border-b border-[var(--border)]">
               <button
@@ -432,17 +489,17 @@ export default function CandidatesPage() {
                 className="flex items-center gap-2 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)]"
               >
                 <span className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                  selected.size === jobs.length
+                  selected.size === sortedJobs.length
                     ? 'bg-[var(--accent)] border-[var(--accent)]'
                     : 'border-[var(--border)]'
                 }`}>
-                  {selected.size === jobs.length && (
+                  {selected.size === sortedJobs.length && (
                     <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                     </svg>
                   )}
                 </span>
-                {selected.size === jobs.length ? 'Deselect All' : 'Select All'}
+                {selected.size === sortedJobs.length ? 'Deselect All' : 'Select All'}
               </button>
 
               {/* Sort selector */}
@@ -641,6 +698,22 @@ function CandidateCard({
                       'bg-gray-100 text-gray-600'
                     }`}>
                       {job.score} pts
+                    </span>
+                  )}
+                  {(job.categories || []).slice(0, 4).map(cat => (
+                    <span
+                      key={cat}
+                      className={`px-2 py-0.5 rounded-full text-xs font-medium border ${categoryChipClass(cat)}`}
+                    >
+                      {CATEGORY_LABELS[cat] || cat}
+                    </span>
+                  ))}
+                  {job.requiresRelocation && (
+                    <span
+                      className="px-2 py-0.5 rounded-full text-xs font-medium border bg-orange-50 text-orange-700 border-orange-200"
+                      title="US on-site, no remote option stated"
+                    >
+                      relocation
                     </span>
                   )}
                 </div>
