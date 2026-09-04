@@ -10,6 +10,13 @@ import type { Job, RawJob } from './types.js';
 /** Bounded so a large backlog drains over several runs rather than in one bill. */
 const BACKLOG_PER_RUN = 100;
 
+/**
+ * Drain the sources whose jobs actually earn a verdict. Measured over 436
+ * reviewed jobs, 80000hours returns 82% strong-or-good and adzuna 8%, so
+ * spending the budget evenly across sources buys mostly auto-dismissals.
+ */
+const BACKLOG_SOURCES = ['80000hours', 'ats', 'arbeitnow'];
+
 // Normalize title for duplicate detection within batch
 function normalizeTitle(title: string): string {
   return title
@@ -136,7 +143,7 @@ async function main() {
       // scrape brought in, so a job that arrived any other way - restored from
       // NOT_FIT, un-archived, or caught in a run a deploy rollover killed - kept
       // no verdict and sorted into the middle of the list carrying nothing.
-      const backlog = findUnreviewed({ limit: BACKLOG_PER_RUN });
+      const backlog = findUnreviewed({ limit: BACKLOG_PER_RUN, sources: BACKLOG_SOURCES });
       if (backlog.length > 0) {
         console.log(`\n🤖 Reviewing ${backlog.length} previously unreviewed jobs...`);
         const tally = await reviewAndPersist(backlog, profile,

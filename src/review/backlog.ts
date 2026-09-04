@@ -19,18 +19,45 @@ const CHUNK = 20;
 export interface BacklogQuery {
   limit?: number;
   minScore?: number;
+  /** Restrict to these sources. See findUnreviewed for why this beats minScore. */
+  sources?: string[];
 }
 
-/** Highest-scoring first, so a limited run spends the budget where it matters. */
-export function findUnreviewed({ limit = 0, minScore = 0 }: BacklogQuery = {}): Job[] {
+/**
+ * Highest-scoring first, but do not mistake that for a ranking. Measured over
+ * 436 reviewed jobs, the regex score separates AUTO_DISMISS (median 44) from
+ * the rest (median ~52) and nothing else: STRONG_FIT and MAYBE have the same
+ * median and overlapping quartiles, the top-scoring job in the database is a
+ * MAYBE, and a STRONG_FIT can score 15. Cutting the tail at 45 would have
+ * discarded 29% of the strong-and-good jobs.
+ *
+ * Source is the signal that actually predicts a verdict, by a wide margin:
+ *
+ *   80000hours  82% strong-or-good   4.35x base rate
+ *   ats         21%                  1.10x
+ *   arbeitnow   16%                  0.85x
+ *   adzuna       8%                  0.41x
+ *
+ * So prefer `sources` over `minScore` when trimming a backlog to fit a budget.
+ */
+export function findUnreviewed({ limit = 0, minScore = 0, sources }: BacklogQuery = {}): Job[] {
+  const params: (string | number)[] = [minScore];
+  let sourceClause = '';
+  if (sources?.length) {
+    sourceClause = `AND source IN (${sources.map(() => '?').join(', ')})`;
+    params.push(...sources);
+  }
+  if (limit > 0) params.push(limit);
+
   return db.prepare(`
     SELECT * FROM jobs
     WHERE (ai_reviewed = 0 OR ai_reviewed IS NULL)
       AND status IN ('PENDING', 'NEW')
       AND score >= ?
+      ${sourceClause}
     ORDER BY score DESC
     ${limit > 0 ? 'LIMIT ?' : ''}
-  `).all(...(limit > 0 ? [minScore, limit] : [minScore])) as Job[];
+  `).all(...params) as Job[];
 }
 
 export type Tally = Record<string, number>;

@@ -5,7 +5,10 @@
  *
  * Usage:
  *   npx tsx src/review-pending.ts --dry-run
- *   npx tsx src/review-pending.ts --confirm [--limit=200] [--min-score=40]
+ *   npx tsx src/review-pending.ts --confirm [--limit=200] [--sources=80000hours,ats]
+ *
+ * Prefer --sources over --min-score when trimming to a budget: the score does
+ * not rank (see review/backlog.ts), the source does.
  */
 
 import { config } from 'dotenv';
@@ -22,9 +25,12 @@ const flag = (name: string, fallback: number): number => {
 
 const limit = flag('limit', 0);
 const minScore = flag('min-score', 0);
-const jobs = findUnreviewed({ limit, minScore });
+const sourcesArg = args.find(a => a.startsWith('--sources='));
+const sources = sourcesArg ? sourcesArg.split('=')[1].split(',').filter(Boolean) : undefined;
+const jobs = findUnreviewed({ limit, minScore, sources });
 
-console.log(`${jobs.length} unreviewed jobs${minScore ? ` scoring >= ${minScore}` : ''}`);
+console.log(`${jobs.length} unreviewed jobs${minScore ? ` scoring >= ${minScore}` : ''}` +
+  `${sources ? ` from ${sources.join(', ')}` : ''}`);
 if (jobs.length === 0) process.exit(0);
 
 const bySource = jobs.reduce<Record<string, number>>((acc, j) => {
