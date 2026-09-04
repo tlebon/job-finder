@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import type { Job, RawJob } from '../types.js';
+import { cleanJobDescription } from '../utils/jobText.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -71,6 +72,15 @@ try {
 // Tech categories matched at filter time (JSON array). Drives UI filters.
 try {
   db.exec(`ALTER TABLE jobs ADD COLUMN categories TEXT`);
+} catch {
+  // Column already exists
+}
+
+// Store the AI's score adjustment separately. Folding it only into `score` made
+// recalculation destructive: the regex score overwrote it and it could not be
+// reconstructed. Kept apart, recalculation is idempotent.
+try {
+  db.exec(`ALTER TABLE jobs ADD COLUMN ai_score_adjustment INTEGER`);
 } catch {
   // Column already exists
 }
@@ -196,7 +206,7 @@ export function appendJobs(jobs: Job[]): number {
         job.title,
         job.location,
         job.url,
-        job.description?.substring(0, 50000) || '', // Limit description size
+        cleanJobDescription(job.description).substring(0, 50000), // strip markup, then cap
         job.coverLetter || null,
         job.status || 'NEW',
         job.score || 0,
@@ -245,9 +255,16 @@ export function updateJobWithAIReview(result: AIReviewResult): void {
     SET ai_reviewed = 1,
         ai_suggestion = ?,
         ai_reasoning = ?,
-        score = score + ?
+        ai_score_adjustment = ?,
+        score = score + ? - COALESCE(ai_score_adjustment, 0)
     WHERE id = ?
-  `).run(result.suggestion, result.reasoning, result.scoreAdjustment, result.jobId);
+  `).run(
+    result.suggestion,
+    result.reasoning,
+    result.scoreAdjustment,
+    result.scoreAdjustment,
+    result.jobId
+  );
 }
 
 export function updateJobCategories(jobId: string, categories: string[]): void {

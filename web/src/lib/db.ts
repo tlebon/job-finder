@@ -74,6 +74,11 @@ function getDb(): Database.Database {
   } catch {
     // Column already exists
   }
+  try {
+    _db.exec(`ALTER TABLE jobs ADD COLUMN ai_score_adjustment INTEGER`);
+  } catch {
+    // Column already exists
+  }
 
   // Set updated_at = created_at for existing jobs
   try {

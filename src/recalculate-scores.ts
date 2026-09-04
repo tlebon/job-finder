@@ -31,6 +31,7 @@ interface JobRow {
   source: string;
   score: number | null;
   status: string;
+  ai_score_adjustment: number | null;
 }
 
 function main(): void {
@@ -44,7 +45,8 @@ function main(): void {
   }
 
   const jobs = db.prepare(`
-    SELECT id, title, description, location, company, url, source, score, status
+    SELECT id, title, description, location, company, url, source, score, status,
+           ai_score_adjustment
     FROM jobs
     WHERE status NOT IN ('ARCHIVED', 'DEAD', 'EXPIRED')
   `).all() as JobRow[];
@@ -73,19 +75,23 @@ function main(): void {
       continue;
     }
 
+    // Re-apply the AI's adjustment on top of the fresh regex score, so
+    // recalculating never discards review signal.
+    const adjustment = job.ai_score_adjustment ?? 0;
+    const newScore = result.score + adjustment;
     const oldScore = job.score || 0;
-    const delta = result.score - oldScore;
+    const delta = newScore - oldScore;
 
     if (delta !== 0) {
       deltas.push(delta);
       changed++;
       if (confirm) {
-        update.run(result.score, JSON.stringify(result.categories), job.id);
+        update.run(newScore, JSON.stringify(result.categories), job.id);
       }
     } else {
       unchanged++;
       if (confirm) {
-        update.run(result.score, JSON.stringify(result.categories), job.id);
+        update.run(newScore, JSON.stringify(result.categories), job.id);
       }
     }
   }

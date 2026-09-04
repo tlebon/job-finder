@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config.js';
 import type { Job } from '../types.js';
 import type { AIReviewResult, AISuggestion } from '../storage/db.js';
+import { excerptForReview } from '../utils/jobText.js';
 
 const anthropic = new Anthropic({
   apiKey: env.ANTHROPIC_API_KEY,
@@ -31,7 +32,7 @@ JOB ${i + 1} (ID: ${job.id}):
 - Title: ${job.title}
 - Company: ${job.company}
 - Location: ${job.location}
-- Description: ${job.description?.substring(0, 1500) || 'No description'}
+- Description: ${excerptForReview(job.description) || 'No description'}
 `).join('\n---\n');
 
   const prompt = `You are helping a job seeker review job listings to determine which ones are worth applying to.

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getJobsByStatus, getProfile } from '@/lib/db';
 import { db } from '@/lib/db';
 import Anthropic from '@anthropic-ai/sdk';
+import { excerptForReview } from '@/lib/jobText';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -31,7 +32,7 @@ JOB ${i + 1} (ID: ${job.id}):
 - Title: ${job.title}
 - Company: ${job.company}
 - Location: ${job.location}
-- Description: ${job.description?.substring(0, 1500) || 'No description'}
+- Description: ${excerptForReview(job.description) || 'No description'}
 `).join('\n---\n');
 
   const prompt = `You are helping a job seeker review job listings to determine which ones are worth applying to.
