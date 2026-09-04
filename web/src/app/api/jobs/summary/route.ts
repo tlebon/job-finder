@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getJobsSince, getTopJobsSince, Job } from '@/lib/db';
+import { getJobsSince, getTopJobsSince, getLastVisited, setLastVisited, Job } from '@/lib/db';
 
 interface SummaryResponse {
   newJobsCount: number;
@@ -83,14 +83,8 @@ function generateSummaryText(jobs: Job[], topJobs: Job[]): string {
 }
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const since = searchParams.get('since');
-
-  if (!since) {
-    return NextResponse.json({
-      error: 'Missing "since" query parameter (ISO date string)',
-    }, { status: 400 });
-  }
+  // Falls back to the server-stored marker so the summary survives a browser change
+  const since = request.nextUrl.searchParams.get('since') || getLastVisited();
 
   try {
     // Get all jobs since the date
@@ -128,5 +122,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       error: 'Failed to generate summary',
     }, { status: 500 });
+  }
+}
+
+// Marks the summary as seen, advancing the server-side last-visited marker.
+export async function POST() {
+  try {
+    setLastVisited();
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error updating last visited:', error);
+    return NextResponse.json({ error: 'Failed to update last visited' }, { status: 500 });
   }
 }

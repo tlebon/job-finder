@@ -21,8 +21,6 @@ interface SummaryData {
   topJobs: TopJob[];
 }
 
-const LAST_VISITED_KEY = 'jobfinder_last_visited';
-
 export function NewJobsSummary() {
   const [data, setData] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,18 +29,9 @@ export function NewJobsSummary() {
 
   useEffect(() => {
     const fetchSummary = async () => {
-      // Get last visited timestamp from localStorage
-      const lastVisited = localStorage.getItem(LAST_VISITED_KEY);
-
-      // If never visited, set current time and skip summary
-      if (!lastVisited) {
-        localStorage.setItem(LAST_VISITED_KEY, new Date().toISOString());
-        setLoading(false);
-        return;
-      }
-
       try {
-        const res = await fetch(`/api/jobs/summary?since=${encodeURIComponent(lastVisited)}`);
+        // The server tracks last-visited, so this survives a browser or device change
+        const res = await fetch('/api/jobs/summary');
         if (!res.ok) throw new Error('Failed to fetch summary');
 
         const summaryData = await res.json();
@@ -57,10 +46,13 @@ export function NewJobsSummary() {
     fetchSummary();
   }, []);
 
-  const handleDismiss = () => {
+  const handleDismiss = async () => {
     setDismissed(true);
-    // Update last visited time
-    localStorage.setItem(LAST_VISITED_KEY, new Date().toISOString());
+    try {
+      await fetch('/api/jobs/summary', { method: 'POST' });
+    } catch (err) {
+      console.error('Error updating last visited:', err);
+    }
   };
 
   const getSuggestionBadge = (suggestion: string) => {
