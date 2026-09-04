@@ -67,12 +67,14 @@ export async function fetchJSearchJobs(rapidApiKey?: string): Promise<RawJob[]> 
 
   const jobs: RawJob[] = [];
 
-  // Reduced queries to stay within free tier (200/month)
-  // 3 queries × 1 run/day × 30 days = 90 requests/month (safe margin)
+  // Kept within the free tier (200 requests/month).
+  // 4 queries x 1 run/day x 30 days = 120 requests/month (safe margin).
+  // The 24h cache means extra cron runs in a day cost nothing.
   const queries = [
     'react developer remote europe',
     'frontend developer germany portugal spain',
     'fullstack developer berlin lisbon barcelona',
+    'data scientist machine learning engineer remote europe',
   ];
 
   try {
