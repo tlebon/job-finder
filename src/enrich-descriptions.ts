@@ -23,6 +23,15 @@
  *   npx tsx src/enrich-descriptions.ts --dry-run [--limit=20]
  *   npx tsx src/enrich-descriptions.ts --confirm [--limit=200] [--min-length=800]
  *   npx tsx src/enrich-descriptions.ts --target=sample --confirm
+ *   npx tsx src/enrich-descriptions.ts --confirm --mark-gone
+ *
+ * --mark-gone sets status DEAD for 404 and 410. Enrichment and status changes
+ * are separate concerns and were kept apart on purpose, but the alternative is
+ * crawling the same 1,400 URLs twice to learn the same thing. The flag is
+ * opt-in, off by default, and acts only on 404 and 410 - never on 403, 429 or a
+ * timeout, which mean blocked or unknown rather than gone. A first pass already
+ * found 944 of these; anything marked has now returned gone on two separate
+ * crawls.
  */
 
 import { config } from 'dotenv';
@@ -37,6 +46,7 @@ const arg = (n: string, d: number) =>
 const limit = arg('limit', 100);
 const minLength = arg('min-length', 800);
 const confirm = process.argv.includes('--confirm');
+const markGone = process.argv.includes('--mark-gone');
 const DELAY_MS = 700;
 
 type Outcome = 'enriched' | 'no-better' | 'blocked' | 'gone' | 'error';
@@ -110,6 +120,10 @@ console.log(`${rows.length} ${target === 'sample' ? 'sample rows' : 'jobs'} with
 
 const updateJob = db.prepare('UPDATE jobs SET description = ? WHERE id = ?');
 const updateSample = db.prepare('UPDATE label_sample SET description = ? WHERE url = ?');
+const markDead = db.prepare(`
+  UPDATE jobs SET status = 'DEAD', status_source = 'system', status_changed_at = ?
+  WHERE id = ? AND status NOT IN ('DEAD', 'EXPIRED', 'APPLIED', 'INTERVIEW')
+`);
 const clearStaleLabel = db.prepare(`
   UPDATE label_sample SET human_label = NULL, labelled_at = NULL
   WHERE url = ? AND human_label IS NOT NULL
@@ -117,6 +131,7 @@ const clearStaleLabel = db.prepare(`
 
 const tally: Record<Outcome, number> = { enriched: 0, 'no-better': 0, blocked: 0, gone: 0, error: 0 };
 let gained = 0;
+let marked = 0;
 
 for (const [i, r] of rows.entries()) {
   const res = await fetchDescription(r.url);
@@ -140,6 +155,12 @@ for (const [i, r] of rows.entries()) {
     }
   }
 
+  // APPLIED and INTERVIEW are excluded in the statement: a posting coming down
+  // after Tim applied is normal and must not erase the application.
+  if (outcome === 'gone' && markGone && confirm && target === 'jobs') {
+    marked += markDead.run(new Date().toISOString(), r.id).changes;
+  }
+
   tally[outcome]++;
   if (i % 10 === 0 || outcome === 'gone') {
     console.log(`  ${String(i + 1).padStart(4)}/${rows.length} ${outcome.padEnd(10)}${res.status ?? ''} ${r.title.slice(0, 44)} @ ${r.company.slice(0, 20)}`);
@@ -153,4 +174,7 @@ console.log(`blocked    ${tally.blocked}   403/429/5xx - live, just not scrapabl
 console.log(`gone       ${tally.gone}   404/410 - posting removed`);
 console.log(`error      ${tally.error}   timeout or network failure`);
 if (tally.enriched) console.log(`\naverage gain: ${Math.round(gained / tally.enriched)} characters per enriched job`);
+if (markGone) {
+  console.log(confirm ? `marked DEAD: ${marked}` : `would mark DEAD: ${tally.gone}`);
+}
 if (!confirm) console.log('\nDRY RUN: nothing written. Pass --confirm.');

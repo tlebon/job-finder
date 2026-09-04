@@ -17,6 +17,9 @@ export async function middleware(request: NextRequest) {
   if (
     pathname === '/login' ||
     pathname.startsWith('/api/auth') ||
+    // Carries its own bearer token, checked in the route. The session cookie
+    // cannot be used from a training script.
+    pathname.startsWith('/api/export/') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
     pathname.endsWith('.ico') ||
