@@ -199,3 +199,37 @@ test('US on-site is flagged for relocation rather than excluded', () => {
   assert.equal(r.passed, true, 'US roles should pass');
   assert.equal(r.requiresRelocation, true, 'and be flagged as needing a move');
 });
+
+// --- the whitelist must not become a wall -----------------------------------
+// Requiring an exact includeTitles match rejected 58% of all jobs on "no title
+// match", including the Anthropic Fellows Program Tim is applying to.
+
+test('engineering-shaped titles pass without being enumerated', () => {
+  for (const title of [
+    'Anthropic Fellows Program, AI Safety & Security',
+    'Forward Deployed Engineer',
+    'Applied AI Architect',
+    'Member of the Technical Staff',
+    'Product Engineer',
+    'Bioinformatics Engineer',
+  ]) {
+    const r = filterJob(job({
+      title,
+      description: 'Python, PyTorch, LLM and distributed systems work.',
+      location: 'Berlin, Germany',
+    }));
+    assert.equal(r.passed, true, `"${title}" should pass: ${r.matchedCriteria.join(' | ')}`);
+  }
+});
+
+test('shape does not readmit the non-engineering roles', () => {
+  for (const title of ['AV Engineer', 'Data Center Electrical Engineer', 'Research Counsel']) {
+    const r = filterJob(job({
+      title,
+      company: 'Anthropic',
+      description: AI_COMPANY_BOILERPLATE,
+      location: 'San Francisco, CA',
+    }));
+    assert.equal(r.passed, false, `"${title}" should still be excluded`);
+  }
+});

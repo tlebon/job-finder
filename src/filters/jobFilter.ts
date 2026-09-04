@@ -2,6 +2,19 @@ import type { RawJob, FilterResult } from '../types.js';
 import { filterConfig, matchedTechCategories } from '../config.js';
 import { getBlocklist } from '../storage/db.js';
 
+/**
+ * Titles that read as technical work, used to gate the lenient pass rules.
+ *
+ * includeTitles is an enumeration, and enumerations fail silent: requiring an
+ * exact match turned it into a wall that rejected "Applied AI Engineer",
+ * "Forward Deployed Engineer", "Member of the Technical Staff" and the
+ * Anthropic Fellows Program - 58% of all rejections were "no title match".
+ * Shape plus the exclusion blocklist fails open instead, which is the right
+ * direction for a whitelist nobody maintains.
+ */
+const ENGINEERING_SHAPE =
+  /(engineer|engineering|developer|scientist|researcher|research|architect|technical staff|fellow|programmer|\bmts\b)/i;
+
 /** Bounded so a long job description cannot run the tech score away. */
 const TECH_CATEGORY_CAP = 4;
 const TECH_CATEGORY_POINTS = 8;
@@ -204,15 +217,19 @@ export function filterJob(job: RawJob): FilterResult {
     score += Math.min(boostMatches.length, BOOST_CAP) * BOOST_POINTS;
   }
 
+  const titleIsTechnical = titleMatches.length > 0 || ENGINEERING_SHAPE.test(title);
+
   // Pass criteria (any of these):
 
   // 1. Title match + location match (traditional)
   const titleAndLocation = titleMatches.length > 0 && locationMatches.length > 0;
 
+  // A title either on the whitelist or simply shaped like engineering work.
+  // Non-engineering roles are carved out by excludeTitles, which is extensive.
   // 2. Domain match (blockchain/privacy company with relevant tech)
   const domainMatch =
     techCats.length > 0 && companyTypeMatches.length > 0 &&
-    locationMatches.length > 0 && titleMatches.length > 0;
+    locationMatches.length > 0 && titleIsTechnical;
 
   // 3. LENIENT: 2+ distinct tech categories + location, but still requires a
   // recognised title. Without that clause, every posting at an AI company
@@ -220,7 +237,7 @@ export function filterJob(job: RawJob): FilterResult {
   // Director, Revenue Accounting both matched llm+ml from the company blurb.
   // Those all scored exactly 30, the signature of zero title match.
   const strongTechMatch =
-    techCats.length >= 2 && locationMatches.length > 0 && titleMatches.length > 0;
+    techCats.length >= 2 && locationMatches.length > 0 && titleIsTechnical;
 
   if (needsRelocation) {
     matchedCriteria.push('Requires relocation (US on-site)');

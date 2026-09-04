@@ -183,14 +183,26 @@ export async function POST() {
 
         // Update database with results
         for (const result of results) {
+          // Must stay identical to updateJobWithAIReview in src/storage/db.ts.
+          // This path previously folded the adjustment into `score` without
+          // recording it, so recalculate-scores - which re-applies
+          // ai_score_adjustment on top of a fresh regex score - would have
+          // silently stripped +30..+50 from every job reviewed here.
           db.prepare(`
             UPDATE jobs
             SET ai_reviewed = 1,
                 ai_suggestion = ?,
                 ai_reasoning = ?,
-                score = score + ?
+                ai_score_adjustment = ?,
+                score = score + ? - COALESCE(ai_score_adjustment, 0)
             WHERE id = ?
-          `).run(result.suggestion, result.reasoning, result.scoreAdjustment, result.jobId);
+          `).run(
+            result.suggestion,
+            result.reasoning,
+            result.scoreAdjustment,
+            result.scoreAdjustment,
+            result.jobId
+          );
 
           // Track counts for summary
           if (result.suggestion === 'STRONG_FIT') summaryCounts.strongFit++;

@@ -33,6 +33,10 @@ const AI_SUGGESTION_ORDER: Record<AISuggestion, number> = {
   AUTO_DISMISS: 3,
 };
 
+/** Not-yet-reviewed carries no information, so it ranks beside MAYBE rather
+ *  than below an explicit rejection. */
+const UNREVIEWED_ORDER = 2.5;
+
 export default function CandidatesPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,8 +194,12 @@ export default function CandidatesPage() {
       case 'ai':
         // Sort by AI suggestion first (Strong > Good > Maybe > Auto-dismiss > Not reviewed)
         // Then by score within each category
-        const aOrder = a.aiSuggestion ? AI_SUGGESTION_ORDER[a.aiSuggestion] : 99;
-        const bOrder = b.aiSuggestion ? AI_SUGGESTION_ORDER[b.aiSuggestion] : 99;
+        // Unreviewed sorts as neutral, not as worse than a rejection. Sending
+        // it to 99 buried every job from a source whose review had not run yet:
+        // all 295 ATS and 80,000 Hours jobs ranked below AUTO_DISMISS, putting
+        // the highest-scoring job in the database at rank 1589.
+        const aOrder = a.aiSuggestion ? AI_SUGGESTION_ORDER[a.aiSuggestion] : UNREVIEWED_ORDER;
+        const bOrder = b.aiSuggestion ? AI_SUGGESTION_ORDER[b.aiSuggestion] : UNREVIEWED_ORDER;
         if (aOrder !== bOrder) return aOrder - bOrder;
         return b.score - a.score;
       case 'score':

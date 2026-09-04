@@ -36,6 +36,7 @@ interface JobRow {
   score: number | null;
   status: string;
   ai_score_adjustment: number | null;
+  ai_reviewed: number | null;
 }
 
 function main(): void {
@@ -51,7 +52,7 @@ function main(): void {
 
   const jobs = db.prepare(`
     SELECT id, title, description, location, company, url, source, score, status,
-           ai_score_adjustment
+           ai_score_adjustment, ai_reviewed
     FROM jobs
     WHERE status NOT IN ('ARCHIVED', 'DEAD', 'EXPIRED')
   `).all() as JobRow[];
@@ -65,6 +66,7 @@ function main(): void {
   let unchanged = 0;
   let nowExcluded = 0;
   let pruned = 0;
+  let unreconstructable = 0;
   const deltas: number[] = [];
 
   for (const job of jobs) {
@@ -90,6 +92,15 @@ function main(): void {
 
     // Re-apply the AI's adjustment on top of the fresh regex score, so
     // recalculating never discards review signal.
+    //
+    // Jobs reviewed before the adjustment column was recorded have it NULL
+    // while their `score` still contains the adjustment. Recomputing those from
+    // the regex alone would silently strip it, so they are left untouched and
+    // counted instead. They correct themselves on their next review.
+    if (job.ai_reviewed === 1 && job.ai_score_adjustment === null) {
+      unreconstructable++;
+      continue;
+    }
     const adjustment = job.ai_score_adjustment ?? 0;
     const newScore = result.score + adjustment;
     const oldScore = job.score || 0;
@@ -112,6 +123,10 @@ function main(): void {
   deltas.sort((a, b) => a - b);
   const median = deltas.length ? deltas[Math.floor(deltas.length / 2)] : 0;
 
+  if (unreconstructable > 0) {
+    console.log(`Skipped ${unreconstructable} jobs reviewed before ai_score_adjustment was recorded`);
+    console.log('  (their score still holds the adjustment; recomputing would strip it)');
+  }
   console.log(`Changed:      ${changed}`);
   console.log(`Unchanged:    ${unchanged}`);
   console.log(`No longer passing filter: ${nowExcluded}${prune ? ` (${pruned} archived)` : ' (left untouched; pass --prune to archive)'}`);
