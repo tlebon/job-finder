@@ -79,6 +79,56 @@ function getDb(): Database.Database {
   // the only ground-truth labels here - the reviewer agrees with itself on just
   // 50% of re-reviews, so its own verdicts cannot serve as truth.
   // Separate try blocks: one failure inside a shared block skips the rest.
+  // The application question bank.
+  //
+  // Created here as well as in the scraper's chunk store, because that one is
+  // built lazily by initChunkStore() and the web app never calls it - so the
+  // page would query a table that does not exist. Same shape of bug as the
+  // label_sample columns: a migration that only runs when something happens to
+  // import it is a migration that has not run.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS application_questions (
+      id TEXT PRIMARY KEY,
+      normalized_key TEXT NOT NULL,
+      question_text TEXT NOT NULL,
+      company TEXT,
+      job_id TEXT,
+      answer TEXT,
+      provenance TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      kind TEXT DEFAULT 'prose',
+      ats TEXT,
+      length_limit TEXT,
+      embedding BLOB,
+      cluster_id INTEGER,
+      last_confirmed TEXT
+    )
+  `);
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS answer_uses (
+      id TEXT PRIMARY KEY,
+      question_id TEXT NOT NULL,
+      job_id TEXT,
+      company TEXT,
+      used_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      edited INTEGER DEFAULT 0
+    )
+  `);
+  // Columns for a table that predates them - the scraper may have created it
+  // first, without these.
+  for (const column of [
+    "kind TEXT DEFAULT 'prose'", 'ats TEXT', 'length_limit TEXT',
+    'embedding BLOB', 'cluster_id INTEGER', 'last_confirmed TEXT',
+  ]) {
+    try {
+      _db.exec(`ALTER TABLE application_questions ADD COLUMN ${column}`);
+    } catch {
+      // Column already exists
+    }
+  }
+  _db.exec(`CREATE INDEX IF NOT EXISTS idx_questions_key ON application_questions(normalized_key)`);
+  _db.exec(`CREATE INDEX IF NOT EXISTS idx_uses_question ON answer_uses(question_id)`);
+
   // The human-labelled evaluation set. Created here as well as in the scraper's
   // storage layer, so the labelling UI works on a fresh database without
   // waiting for a scrape.
