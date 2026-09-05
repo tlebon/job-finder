@@ -41,12 +41,23 @@ def main(k: int = 8) -> None:
 
     titles, chunks, owner = embed_rows(rows, "labels")
 
-    # Max over chunks rather than mean: a single strong paragraph in a long
-    # posting should survive, and averaging is what buries it.
+    # Mean here, max in pooling_experiment.py, and the difference is the point:
+    # the two answer different questions.
+    #
+    # A classification feature asks "does ANY part of this posting say X", and
+    # max preserves that - one mention of a rare thing survives, the property
+    # IDF gives TF-IDF. Measured, max beat the alternatives at ranking.
+    #
+    # Clustering asks "what is this posting ABOUT", and max is wrong for it: it
+    # produces the union of every peak, so long postings light up many
+    # dimensions and blur together. Substituting max here dissolved a clean
+    # Machine Learning Engineer cluster into one containing Technical Recruiter,
+    # and produced a cluster grouping on the word "Remote" in the title.
     body = np.zeros_like(titles)
     for i in range(len(rows)):
         mine = chunks[owner == i]
-        body[i] = mine[np.argmax(mine @ mine.mean(axis=0))] if len(mine) else 0
+        if len(mine):
+            body[i] = mine.mean(axis=0)
 
     X = np.hstack([titles, body])
     X /= np.linalg.norm(X, axis=1, keepdims=True) + 1e-9
