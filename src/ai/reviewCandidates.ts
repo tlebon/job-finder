@@ -26,18 +26,19 @@ interface BatchReviewResult {
 }
 
 /**
- * Two jobs per call, not five.
+ * Five jobs per call.
  *
- * Measured by src/eval-reviewer-consistency.ts, the reviewer agreed with its own
- * earlier verdict on 50% of 115 re-reviews, and 20% crossed the good/not-good
- * line the pipeline turns on. Of ten jobs first called STRONG_FIT, zero came
- * back STRONG_FIT. Batching five to a prompt is one cause: a verdict is
- * conditioned on the four arbitrary neighbours a job landed with, which is pure
- * noise with respect to the job. Smaller batches cost more calls and are worth
- * it, because every downstream number is measured against these labels and
- * label noise drags all of them toward chance.
+ * Briefly dropped to two, on the theory that batch context was driving the
+ * reviewer's 50% self-agreement. That was measured under temperature 1.0, and
+ * setting temperature to 0 addressed the same problem for free - the smaller
+ * batch was never re-measured against that baseline, and it tripled the call
+ * count while repeating the ~1,000-token instruction block on every call. Over
+ * one day of re-reviews it cost several euro for an unverified gain.
+ *
+ * If batch context turns out to matter after all, measure it with
+ * eval-reviewer-consistency at temperature 0 before paying for it again.
  */
-const BATCH_SIZE = 2;
+const BATCH_SIZE = 5;
 
 /**
  * Thrown when review cannot proceed at all - no credit, bad key, no access.
@@ -62,7 +63,11 @@ JOB ${i + 1} (ID: ${job.id}):
 - Description: ${excerptForReview(job.description) || 'No description'}
 `).join('\n---\n');
 
-  const prompt = `You are helping a job seeker review job listings to determine which ones are worth applying to.
+  // Split so the constant half can be cached. Everything above the postings is
+  // identical on every call - instructions, criteria, output format and the
+  // profile - and is most of the input once five jobs share one call. The
+  // postings move to the end because a cache prefix has to be a prefix.
+  const systemPrompt = `You are helping a job seeker review job listings to determine which ones are worth applying to.
 
 CANDIDATE PROFILE:
 - Name: ${profile.name}
@@ -71,9 +76,6 @@ CANDIDATE PROFILE:
 - Skills: ${profile.skills}
 - Experience: ${profile.experience?.substring(0, 1000) || 'Not provided'}
 - Preferences: ${profile.preferences || 'No specific preferences noted'}
-
-JOBS TO REVIEW:
-${jobDescriptions}
 
 The question is whether the candidate would CONSIDER APPLYING - not whether they
 are the strongest applicant. Those differ, and for someone mid-career-change they
@@ -163,6 +165,11 @@ use MAYBE.
 Judge each posting on its own. The jobs in this batch are unrelated to one
 another and their order carries no meaning.`;
 
+  const prompt = `JOBS TO REVIEW:
+${jobDescriptions}
+
+Return the JSON array now, one object per job, in the order given.`;
+
   try {
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
@@ -170,6 +177,11 @@ another and their order carries no meaning.`;
       // Was unset, so it ran at the default 1.0 and resampled a fresh opinion
       // every time. This is a classification, not a creative task.
       temperature: 0,
+      // The instructions and profile are identical on every call and account
+      // for most of the input tokens once batching spreads the job text across
+      // five postings. Caching that block cuts the repeated cost by roughly 90%
+      // on a hit, which matters when a full pass is 500+ calls.
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: prompt }],
     });
 

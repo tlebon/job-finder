@@ -7,6 +7,13 @@
  *   npx tsx src/review-pending.ts --dry-run
  *   npx tsx src/review-pending.ts --confirm [--limit=200] [--sources=80000hours,ats]
  *   npx tsx src/review-pending.ts --confirm --include-stale
+ *   npx tsx src/review-pending.ts --confirm --min-model=0.15
+ *
+ * --min-model skips jobs the trained model ranks below a threshold. On 200
+ * held-out rows the top 30% by model score held 87.5% of the jobs Tim would
+ * consider, so a full pass costs about $0.71 instead of $15. Ordering is by
+ * model score, so a --limit spends the budget on the most promising jobs
+ * rather than on whatever the regex happened to score highly.
  *
  * --include-stale also re-reviews jobs judged by an older prompt, identified by
  * a missing ai_reach. Those verdicts came from the version asking whether Tim
@@ -34,10 +41,13 @@ const minScore = flag('min-score', 0);
 const sourcesArg = args.find(a => a.startsWith('--sources='));
 const sources = sourcesArg ? sourcesArg.split('=')[1].split(',').filter(Boolean) : undefined;
 const includeStale = args.includes('--include-stale');
-const jobs = findUnreviewed({ limit, minScore, sources, includeStale });
+const minModelScore = flag('min-model', 0);
+const jobs = findUnreviewed({ limit, minScore, sources, includeStale, minModelScore });
 
 console.log(`${jobs.length} ${includeStale ? 'unreviewed or stale' : 'unreviewed'} jobs` +
-  `${minScore ? ` scoring >= ${minScore}` : ''}${sources ? ` from ${sources.join(', ')}` : ''}`);
+  `${minScore ? ` scoring >= ${minScore}` : ''}` +
+  `${minModelScore ? ` with model score >= ${minModelScore}` : ''}` +
+  `${sources ? ` from ${sources.join(', ')}` : ''}`);
 if (jobs.length === 0) process.exit(0);
 
 const bySource = jobs.reduce<Record<string, number>>((acc, j) => {

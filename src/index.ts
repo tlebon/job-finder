@@ -19,6 +19,16 @@ const BACKLOG_PER_RUN = 100;
  */
 const BACKLOG_SOURCES = undefined;
 
+/**
+ * Only spend review on jobs the model ranks at least this highly.
+ *
+ * On 200 held-out rows the top 30% by model score held 87.5% of the jobs Tim
+ * would consider. Reviewing everything buys the last eighth at ten times the
+ * cost, which over one day came to about 20 euro with nothing visible to show
+ * for it.
+ */
+const BACKLOG_MIN_MODEL = 0.15;
+
 // Normalize title for duplicate detection within batch
 function normalizeTitle(title: string): string {
   return title
@@ -155,7 +165,11 @@ async function main() {
       // scrape brought in, so a job that arrived any other way - restored from
       // NOT_FIT, un-archived, or caught in a run a deploy rollover killed - kept
       // no verdict and sorted into the middle of the list carrying nothing.
-      const backlog = findUnreviewed({ limit: BACKLOG_PER_RUN, sources: BACKLOG_SOURCES });
+      const backlog = findUnreviewed({
+        limit: BACKLOG_PER_RUN,
+        sources: BACKLOG_SOURCES,
+        minModelScore: BACKLOG_MIN_MODEL,
+      });
       if (backlog.length > 0) {
         console.log(`\n🤖 Reviewing ${backlog.length} previously unreviewed jobs...`);
         const tally = await reviewAndPersist(backlog, profile,
