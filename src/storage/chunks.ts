@@ -89,8 +89,16 @@ export function initChunkStore(): void {
     CREATE INDEX IF NOT EXISTS idx_chunks_voice ON chunks(voice_eligible);
   `);
 
-  // Real questions encountered on real applications. Seeded from actual forms
-  // rather than invented, so the library matches what gets asked.
+  // Real questions from real applications, never invented ones.
+  //
+  // Scope came from reading six actual forms across Greenhouse, Lever and
+  // Ashby. Of roughly 35 fields, only about six were novel prose - the rest
+  // were either mechanical (name, email, phone, which the browser already
+  // autofills) or recurring ("Why [company]?" appeared in four of six).
+  //
+  // So this stores what is expensive to reproduce, not what merely repeats.
+  // Work authorisation is deliberately absent: Tim knows whether he can work
+  // somewhere, and storing it saves two seconds and no thought.
   db.exec(`
     CREATE TABLE IF NOT EXISTS application_questions (
       id TEXT PRIMARY KEY,
@@ -104,7 +112,50 @@ export function initChunkStore(): void {
     )
   `);
 
+  for (const column of [
+    // 'prose' is the reason this exists. 'decision' covers the few facts that
+    // need a judgement rather than a lookup - salary, notice period, earliest
+    // start. 'mechanical' is recorded but never worth surfacing.
+    "kind TEXT DEFAULT 'prose'",
+    // Greenhouse, Lever, Ashby. Form structure belongs to the platform rather
+    // than the company, so a parsing rule learned once generalises.
+    'ats TEXT',
+    // "in 5 sentences or less", "in just one line". The same answer needs
+    // different lengths, so the constraint belongs on the use, not the answer.
+    'length_limit TEXT',
+    // Questions get asked again in different words. Embedded once on save so
+    // paraphrases can be found; short text, so no pooling problem.
+    'embedding BLOB',
+    'cluster_id INTEGER',
+    // Facts rot. Salary drifts, availability changes, "over a year unemployed"
+    // becomes eighteen months. A stale answer is worse than none, because it
+    // gets pasted without rereading.
+    'last_confirmed TEXT',
+  ]) {
+    try {
+      db.exec(`ALTER TABLE application_questions ADD COLUMN ${column}`);
+    } catch {
+      // Column already exists
+    }
+  }
+
+  // One answer is reused across many applications, so this is a list rather
+  // than a column - and it gives reuse counts for free, which says which
+  // answers are worth polishing.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS answer_uses (
+      id TEXT PRIMARY KEY,
+      question_id TEXT NOT NULL,
+      job_id TEXT,
+      company TEXT,
+      used_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      edited INTEGER DEFAULT 0
+    )
+  `);
+
   db.exec(`CREATE INDEX IF NOT EXISTS idx_questions_key ON application_questions(normalized_key)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_questions_cluster ON application_questions(cluster_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_uses_question ON answer_uses(question_id)`);
 
   initialised = true;
 }
