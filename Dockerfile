@@ -7,6 +7,16 @@ WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm ci
 
+# The web app imports the application-form parser from the scraper's src via the
+# @shared alias, so that stage needs it too. Without this the build fails in
+# eighteen seconds with an unresolved module - and it builds fine locally, where
+# src/ is simply present, so nothing catches it before the deploy.
+# Only src/questions, not all of src. The web tsconfig type-checks whatever it
+# includes, and the rest of src imports @anthropic-ai/sdk and better-sqlite3,
+# which are not web dependencies. Anything shared with the web app therefore has
+# to be self-contained - the parser is, deliberately.
+COPY src/questions/ /app/src/questions/
+
 # Copy web source and build
 COPY web/ ./
 RUN npm run build
