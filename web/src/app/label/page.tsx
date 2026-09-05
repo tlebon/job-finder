@@ -1,7 +1,12 @@
 'use client';
 
 /**
- * Blind labelling of a pre-gate sample.
+ * Blind labelling, and triage.
+ *
+ * Two populations share this UI. Rows drawn from the pre-gate sample are a
+ * measurement, and must stay blind. Rows drawn from the live candidate list are
+ * triage: a yes there moves the job to APPROVED, so a pass through 300 of them
+ * builds a shortlist rather than only a training set.
  *
  * One question, asked the same way every time: would you open this and consider
  * applying? No score, no AI verdict, no source, no indication of whether the
@@ -27,6 +32,7 @@ interface Item {
 export default function LabelPage() {
   const [queue, setQueue] = useState<Item[]>([]);
   const [progress, setProgress] = useState({ total: 0, labelled: 0 });
+  const [shortlisted, setShortlisted] = useState(0);
   const [history, setHistory] = useState<{ item: Item; label: number | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -44,11 +50,12 @@ export default function LabelPage() {
   const current = queue[0];
 
   const send = useCallback(async (id: string, label: number | null) => {
-    await fetch('/api/label', {
+    const res = await fetch('/api/label', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, label }),
     });
+    return res.json() as Promise<{ shortlisted?: boolean }>;
   }, []);
 
   const decide = useCallback(async (label: number | null) => {
@@ -57,7 +64,8 @@ export default function LabelPage() {
     setHistory(h => [{ item: current, label }, ...h].slice(0, 20));
     setQueue(q => q.slice(1));
     setProgress(p => ({ ...p, labelled: p.labelled + (label === null ? 0 : 1) }));
-    await send(current.id, label);
+    const res = await send(current.id, label);
+    if (res?.shortlisted) setShortlisted(n => n + 1);
     setSaving(false);
     if (queue.length <= 3) void load();
   }, [current, saving, queue.length, send, load]);
@@ -106,7 +114,12 @@ export default function LabelPage() {
       <header className="mb-4">
         <div className="flex items-baseline justify-between text-sm text-[var(--ink-muted)]">
           <span>Would you open this and consider applying?</span>
-          <span className="tabular-nums">{progress.labelled} / {progress.total} · {pct}%</span>
+          <span className="tabular-nums">
+            {shortlisted > 0 && (
+              <span className="mr-3 text-[var(--success)]">{shortlisted} shortlisted</span>
+            )}
+            {progress.labelled} / {progress.total} · {pct}%
+          </span>
         </div>
         <div className="mt-2 h-1 w-full overflow-hidden rounded bg-[var(--border)]">
           <div className="h-full bg-[var(--accent)] transition-all" style={{ width: `${pct}%` }} />
