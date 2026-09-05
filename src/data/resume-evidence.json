@@ -1,0 +1,308 @@
+[
+  {
+    "content": "Full-time ML intensive (through Oct 2026): deep learning with PyTorch (CNNs, transformers), classical ML with scikit-learn, model training and evaluation; capstone project in progress",
+    "track": "ic",
+    "label": "resume-2026-v9",
+    "date": "2026"
+  },
+  {
+    "content": "Built Music Matrix, a DJ track-recommendation engine: 943-dim embeddings combining text (sentence- transformers), artist-graph (node2vec), and audio features, fed by a data pipeline enriching metadata via the Spotify, Deezer, and Discogs APIs (Python, FastAPI, sqlite-vss, SvelteKit)",
+    "track": "ic",
+    "label": "resume-2026-v9",
+    "date": "2026"
+  },
+  {
+    "content": "Shipped The Wandering Oracle, an LLM-powered I Ching app (Next.js, Supabase, Claude API), plus",
+    "track": "ic",
+    "label": "resume-2026-v9",
+    "date": "2026"
+  },
+  {
+    "content": "Led a complete redesign of the calling UI for enterprise and government clients, shipping a tiled video layout and integrated A/V controls to thousands of users",
+    "track": "ic",
+    "label": "resume-2026-v9",
+    "date": "2026"
+  },
+  {
+    "content": "Built a CI/CD pipeline with code signing and notarization for a new Electron client",
+    "track": "ic",
+    "label": "resume-2026-v9",
+    "date": "2026"
+  },
+  {
+    "content": "Managed a team of 5 engineers while staying hands-on with development",
+    "track": "ic",
+    "label": "resume-2026-v9",
+    "date": "2026"
+  },
+  {
+    "content": "Core frontend engineer on the Wire web client (React, TypeScript, Electron) serving enterprise and German government customers",
+    "track": "ic",
+    "label": "resume-2026-v9",
+    "date": "2026"
+  },
+  {
+    "content": "Led development of the team management platform, owning day-to-day technical decisions",
+    "track": "ic",
+    "label": "resume-2026-v9",
+    "date": "2026"
+  },
+  {
+    "content": "Contributed to integrating the MLS encryption protocol into the web client",
+    "track": "ic",
+    "label": "resume-2026-v9",
+    "date": "2026"
+  },
+  {
+    "content": "Shipped the Account Entropy feature for a German federal government client, ensuring cryptographic seed security in Windows environments",
+    "track": "ic",
+    "label": "resume-2026-v9",
+    "date": "2026"
+  },
+  {
+    "content": "Architected and shipped an NFT marketplace from scratch (React, TypeScript, NestJS, PostgreSQL,",
+    "track": "ic",
+    "label": "resume-2026-v9",
+    "date": "2026"
+  },
+  {
+    "content": "Built frontend features for a large-scale white-label marketplace serving VW Group properties (React, TypeScript, GraphQL, microfrontend architecture)",
+    "track": "ic",
+    "label": "resume-2026-v9",
+    "date": "2026"
+  },
+  {
+    "content": "GMP peptide synthesis, cleavage, and purification with HPLC/MS and LC-MS analysis; authored SOPs, batch reports, and cleaning-validation protocols",
+    "track": "ic",
+    "label": "resume-2026-v9-science",
+    "date": "2026"
+  },
+  {
+    "content": "Managed and developed a team of 5 engineers, owning the full delivery cycle from requirements and estimation through implementation, QA, and release",
+    "track": "em",
+    "label": "resume-2026-em",
+    "date": "2026"
+  },
+  {
+    "content": "Led complete redesign of the calling UI for enterprise and government clients, shipping a tiled video layout and integrated A/V controls to thousands of users",
+    "track": "em",
+    "label": "resume-2026-em",
+    "date": "2026"
+  },
+  {
+    "content": "Empowered the team to define its own engineering standards collaboratively, building ownership and consistency rather than imposing process top-down",
+    "track": "em",
+    "label": "resume-2026-em",
+    "date": "2026"
+  },
+  {
+    "content": "Built CI/CD pipeline with code signing and notarization for a new Electron client; delivered multiple on-time releases for major enterprise accounts",
+    "track": "em",
+    "label": "resume-2026-em",
+    "date": "2026"
+  },
+  {
+    "content": "Drove cross-team alignment with core engineering on A/V architecture",
+    "track": "em",
+    "label": "resume-2026-em",
+    "date": "2026"
+  },
+  {
+    "content": "Team held the lowest bug count of all Wire client teams (web, iOS, Android, desktop)",
+    "track": "em",
+    "label": "resume-2026-em",
+    "date": "2026"
+  },
+  {
+    "content": "Led frontend development of the Wire web client (React, TypeScript, Electron) serving enterprise and German government customers",
+    "track": "em",
+    "label": "resume-2026-em",
+    "date": "2026"
+  },
+  {
+    "content": "Project lead for the Wire Teams Admin Platform — built new features and prepared the architecture for MLS migration across enterprise accounts",
+    "track": "em",
+    "label": "resume-2026-em",
+    "date": "2026"
+  },
+  {
+    "content": "Architected and shipped an NFT marketplace from scratch and built fullstack DApps with Tezos blockchain APIs, smart contracts, and Web3 wallet integration (React, TypeScript, NestJS, PostgreSQL, Prisma)",
+    "track": "em",
+    "label": "resume-2026-em",
+    "date": "2026"
+  },
+  {
+    "content": "Led TypeScript and GraphQL initiatives for the frontend team and co-organized internal “Dev Day” coding events",
+    "track": "em",
+    "label": "resume-2026-em",
+    "date": "2026"
+  },
+  {
+    "content": "Designed and shipped BeenBurrito, a full-stack recipe management web app (SvelteKit, TypeScript, Supabase) — beenburrito.com",
+    "track": "em",
+    "label": "resume-2026-em",
+    "date": "2026"
+  },
+  {
+    "content": "Built and deployed Peace Sangha, a meditation community platform (Astro, Vercel) — peacesangha.com",
+    "track": "em",
+    "label": "resume-2026-em",
+    "date": "2026"
+  },
+  {
+    "content": "Ongoing freelance frontend development and personal projects across React, TypeScript, and Svelte — star- dog.net",
+    "track": "em",
+    "label": "resume-2026-em",
+    "date": "2026"
+  },
+  {
+    "content": "Led frontend development of the Wire web client (React, TypeScript, Electron) serving enterprise and",
+    "track": "ic",
+    "label": "resume-2026-v8-science",
+    "date": "2026"
+  },
+  {
+    "content": "Built features for a white-label marketplace serving VW Group properties (React, TypeScript, GraphQL)",
+    "track": "ic",
+    "label": "resume-2026-v8-science",
+    "date": "2026"
+  },
+  {
+    "content": "Purified R&D peptides and fluorescent dyes (Hi-Lyte 750); analytical work with LC-MS and UHPLC",
+    "track": "ic",
+    "label": "resume-2026-v8-science",
+    "date": "2026"
+  },
+  {
+    "content": "Peptide synthesis and cleavage with HPLC/MS analysis in a GMP manufacturing facility; authored SOPs, batch reports, and cleaning validation protocols",
+    "track": "ic",
+    "label": "resume-2026-v8-science",
+    "date": "2026"
+  },
+  {
+    "content": "Built a CI/CD pipeline with code signing and notarization for a new Electron client; delivered multiple on-time releases for major enterprise accounts",
+    "track": "ic",
+    "label": "resume-2026-v6",
+    "date": "2026"
+  },
+  {
+    "content": "Drove incremental codebase migration from Knockout.js to React using a leaf-to-tree adoption strategy",
+    "track": "ic",
+    "label": "resume-2026-v6",
+    "date": "2026"
+  },
+  {
+    "content": "Built fullstack DApps with Tezos blockchain APIs, smart contracts, and Web3 wallet integration",
+    "track": "ic",
+    "label": "resume-2026-v6",
+    "date": "2026"
+  },
+  {
+    "content": "Built frontend features for a large-scale white-label marketplace serving VW Group properties, using React, TypeScript, and GraphQL in a microfrontend architecture",
+    "track": "ic",
+    "label": "resume-2026-v6",
+    "date": "2026"
+  },
+  {
+    "content": "Mentored bootcamp students on React projects and web development fundamentals",
+    "track": "ic",
+    "label": "resume-2026-v6",
+    "date": "2026"
+  },
+  {
+    "content": "Guided the web team's personal development (6 engineers)",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Drove cross-functional initiatives across engineering, product, and design",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Led development of calling UI overhaul shipped to users",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Project Lead for Wire Teams Admin Platform",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Built Account Entropy feature for new accounts",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Implemented Blurred Background for video calls",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Led various cross-team technical initiatives",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Built fullstack DApps integrating with Tezos APIs",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Architected and shipped Tezos NFT platform with Postgres, Nest.js, Prisma, React/TypeScript",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Worked with smart contracts, wallet integration (Temple/MetaMask), and Web3 technologies",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Handled complex async blockchain operations: pending transactions, confirmations, error states",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Worked in Agile framework using React, TypeScript, GraphQL, Node",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Helped students with React for their final projects",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Walked 1000+ km from Berlin to France following St. James Way (2025)",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Berlin Half Marathon 2023 & 2024 (1:57:51)",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  },
+  {
+    "content": "Won Comedy Cafe Berlin Cage Match with Improv Group Shredder (2025)",
+    "track": "both",
+    "label": "resume-2025",
+    "date": "2025"
+  }
+]

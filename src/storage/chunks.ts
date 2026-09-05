@@ -26,7 +26,13 @@ export type Slot =
   | 'domain_interest'
   | 'why_company'
   | 'logistics'
-  | 'closing';
+  | 'closing'
+  // Not a letter slot. Resume bullets are compressed evidence rather than
+  // argument - "943-dim embedding recommendation engine, sentence-transformers
+  // + node2vec, k-NN, FastAPI" is the raw stock for "what is the best evidence
+  // you would be great at this", not a sentence to drop into a letter. They are
+  // reference material shown beside an answer, never assembled into one.
+  | 'evidence';
 
 export interface Chunk {
   id: string;
