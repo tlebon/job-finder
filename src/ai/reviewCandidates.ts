@@ -41,6 +41,15 @@ interface BatchReviewResult {
 const BATCH_SIZE = 5;
 
 /**
+ * Which model reviews. Swappable, because this is classification against a
+ * fixed rubric rather than open reasoning, and the cheaper tier may well match
+ * it - a question to settle with ml/compare_models.ts against Tim's own labels
+ * rather than by argument. Cover letter generation stays on Sonnet; that is
+ * writing, where the tier shows.
+ */
+const REVIEW_MODEL = process.env.REVIEW_MODEL || 'claude-sonnet-4-5-20250929';
+
+/**
  * Thrown when review cannot proceed at all - no credit, bad key, no access.
  *
  * Distinct from a batch that merely failed to parse. A transient failure can
@@ -70,7 +79,6 @@ JOB ${i + 1} (ID: ${job.id}):
   const systemPrompt = `You are helping a job seeker review job listings to determine which ones are worth applying to.
 
 CANDIDATE PROFILE:
-- Name: ${profile.name}
 - Current Title: ${profile.title}
 - Location: ${profile.location}
 - Skills: ${profile.skills}
@@ -172,7 +180,7 @@ Return the JSON array now, one object per job, in the order given.`;
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: REVIEW_MODEL,
       max_tokens: 2000,
       // Was unset, so it ran at the default 1.0 and resampled a fresh opinion
       // every time. This is a classification, not a creative task.
