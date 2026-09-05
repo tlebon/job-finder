@@ -26,6 +26,16 @@ interface Question {
   timesUsed: number;
 }
 
+interface JobOption {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  source: string;
+  suggestion?: string;
+  reach?: string;
+}
+
 interface ParsedField {
   question: string;
   kind: Question['kind'];
@@ -45,6 +55,12 @@ export default function QuestionsPage() {
   const [parsed, setParsed] = useState<ParsedField[] | null>(null);
   const [ats, setAts] = useState<string>();
   const [company, setCompany] = useState('');
+  // The job a pasted form belongs to. Without it a question is just text; with
+  // it, prior answers can be found by how similar the company is rather than by
+  // who happened to phrase the question the same way.
+  const [jobQuery, setJobQuery] = useState('');
+  const [jobOptions, setJobOptions] = useState<JobOption[]>([]);
+  const [job, setJob] = useState<JobOption | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,6 +73,16 @@ export default function QuestionsPage() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (job || jobQuery.trim().length < 2) { setJobOptions([]); return; }
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/questions/jobs?q=${encodeURIComponent(jobQuery)}`);
+      const data = await res.json();
+      setJobOptions(data.jobs ?? []);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [jobQuery, job]);
 
   const parse = async () => {
     const res = await fetch('/api/questions/parse', {
@@ -74,11 +100,18 @@ export default function QuestionsPage() {
     await fetch('/api/questions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: parsed, company: company || undefined, ats }),
+      body: JSON.stringify({
+        fields: parsed,
+        company: job?.company ?? (company || undefined),
+        jobId: job?.id,
+        ats,
+      }),
     });
     setParsed(null);
     setPaste('');
     setCompany('');
+    setJob(null);
+    setJobQuery('');
     await load();
   };
 
@@ -123,11 +156,43 @@ export default function QuestionsPage() {
           className="h-32 w-full resize-y rounded border border-[var(--border)] bg-[var(--cream)] p-3 text-sm"
         />
         <div className="mt-2 flex flex-wrap items-center gap-2">
+          {job ? (
+            <span className="flex items-center gap-2 rounded border border-[var(--accent)] bg-[var(--cream-dark)] px-3 py-1.5 text-sm">
+              {job.company} — {job.title.slice(0, 40)}
+              <button onClick={() => { setJob(null); setJobQuery(''); }}
+                className="text-[var(--ink-muted)]" aria-label="clear">×</button>
+            </span>
+          ) : (
+            <div className="relative">
+              <input
+                value={jobQuery}
+                onChange={e => setJobQuery(e.target.value)}
+                placeholder="Which job is this for?"
+                className="rounded border border-[var(--border)] bg-[var(--cream)] px-3 py-1.5 text-sm"
+              />
+              {jobOptions.length > 0 && (
+                <ul className="absolute z-10 mt-1 max-h-56 w-80 overflow-auto rounded border border-[var(--border)] bg-[var(--cream)] shadow">
+                  {jobOptions.map(o => (
+                    <li key={o.id}>
+                      <button onClick={() => { setJob(o); setJobOptions([]); }}
+                        className="block w-full px-3 py-1.5 text-left text-sm hover:bg-[var(--cream-dark)]">
+                        <span className="font-medium">{o.company}</span> — {o.title.slice(0, 44)}
+                        <span className="ml-1 text-xs text-[var(--ink-muted)]">
+                          {o.suggestion === 'STRONG_FIT' ? 'strong' : ''} {o.reach ?? ''}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           <input
             value={company}
             onChange={e => setCompany(e.target.value)}
-            placeholder="Company (optional)"
-            className="rounded border border-[var(--border)] bg-[var(--cream)] px-3 py-1.5 text-sm"
+            placeholder={job ? 'Company (from job)' : 'Company (if not listed)'}
+            disabled={!!job}
+            className="rounded border border-[var(--border)] bg-[var(--cream)] px-3 py-1.5 text-sm disabled:opacity-40"
           />
           <button onClick={() => void parse()} disabled={paste.trim().length < 10}
             className="rounded-md bg-[var(--accent)] px-4 py-1.5 font-medium text-[var(--cream)] disabled:opacity-40">
