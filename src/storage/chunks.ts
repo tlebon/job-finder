@@ -229,13 +229,38 @@ export function chunkStats(): Array<{ provenance: string; slot: string; count: n
 }
 
 /** Collapses "Why do you want to work here?" variants onto one key. */
-export function normalizeQuestion(text: string): string {
-  return text
-    .toLowerCase()
+/**
+ * A key that collapses the same question asked by different companies.
+ *
+ * "Why Granola?", "Why METR?" and "Why do you want to work for Zyphra?" are one
+ * question to answer, not three - and without stripping the company they
+ * normalise to three different keys, which is how six forms produced 43
+ * "distinct" questions with nothing merged at all.
+ *
+ * The company is removed rather than kept, because the cluster is the right
+ * unit for retrieval and the wrong unit for reuse: it should be obvious that
+ * you are reading a Proton answer while applying to Anthropic, so the company
+ * stays on the answer.
+ */
+export function normalizeQuestion(text: string, company?: string): string {
+  let s = text.toLowerCase();
+
+  if (company) {
+    const name = company.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+    if (name.length >= 3) s = s.replace(new RegExp(`\\b${name}\\b`, 'g'), ' ');
+  }
+
+  const key = s
     .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\b(please|kindly|briefly|tell us|describe|explain|what|why|how|do|you|your|are|is|the|a|an)\b/g, '')
+    .replace(/\b(please|kindly|briefly|tell us|describe|explain|what|why|how|do|does|did|you|your|are|is|the|a|an|for|to|us|we|our|with|at|in|of|would|will|be|it|about|want|like|working|work)\b/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+
+  // "Why Granola?" is nothing but a company name and stopwords, so stripping
+  // both leaves an empty string - and an empty key collides with every other
+  // question that empties out. Fall back to the text without the company
+  // removed, which is at least distinct.
+  return key || text.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 export function recordQuestion(args: {

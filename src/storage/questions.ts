@@ -85,6 +85,9 @@ export function saveQuestion(q: Omit<Question, 'id' | 'normalizedKey'> & { id?: 
       provenance = @provenance, last_confirmed = @lastConfirmed
   `).run({
     id,
+    // Without the company: two companies asking the same question are two
+    // questions, because the answers differ. The company-stripped form is a
+    // retrieval key, not an identity - see findRelated.
     key: normalizeQuestion(q.questionText),
     text: q.questionText,
     kind: q.kind ?? 'prose',
@@ -129,13 +132,33 @@ export function listUnanswered(): Question[] {
 }
 
 /**
- * Previous answers to the same question.
+ * Answers to the same question asked by other companies.
  *
- * Exact normalised match only, for now. Paraphrase matching needs embeddings,
- * and until there is a corpus there is nothing to match against - at thirty or
- * a hundred questions a searchable list beats a similarity model and is honest
- * about what it is doing.
+ * Keyed on the question with the company name removed, so "Why Granola?" finds
+ * what was written for METR and Zyphra. That is a retrieval relationship, not
+ * an identity: those answers are not interchangeable, which is why the company
+ * stays visible on each one and why they are stored as separate questions.
+ *
+ * String normalisation only gets part of the way. Stripping the company from
+ * "Why Granola?" leaves nothing but stopwords, while "Why do you care about
+ * Langfuse?" leaves "care" - the same family, different keys. Closing that gap
+ * needs embeddings, and is worth doing once there is a corpus to cluster.
  */
+export function findRelated(questionText: string, company?: string, excludeId?: string): Question[] {
+  initChunkStore();
+  const key = normalizeQuestion(questionText, company);
+  const rows = db.prepare(`
+    SELECT * FROM application_questions
+    WHERE answer IS NOT NULL AND answer <> ''
+      ${excludeId ? 'AND id <> ?' : ''}
+  `).all(...(excludeId ? [excludeId] : [])) as Row[];
+
+  return rows
+    .filter(r => normalizeQuestion(r.question_text, r.company ?? undefined) === key)
+    .map(toQuestion);
+}
+
+/** Exact repeats of the same question, company included. */
 export function findPrevious(questionText: string, excludeId?: string): Question[] {
   initChunkStore();
   const rows = db.prepare(`

@@ -1,0 +1,24 @@
+Autofill from resume
+Upload your resume here to autofill key application fields.
+Upload file
+Name
+Type here...
+Email
+hello@example.com...
+Phone Number
+1-415-555-1234...
+Resume
+No file chosen
+Location
+Start typing...
+Will you now or in the future require sponsorship for employment visa status in the United States, Berlin, Belgrade or London?
+Yes
+No
+Are you able to commit to a hybrid-working model?
+Yes
+No
+Self-Assessment Link
+Please open our Self-Assessment - a dialog with Perplexity will open. Upload your CV or paste it into the answer box in Markdown format. LLM will ask questions, if needed, and give a verdict. Please share a link to a thread with positive verdict. Only the shared conversation will be reviewed.
+https://example.com...
+Do you agree to allow Perplexity to contact you about job opportunities for up to 2 years?
+I agree

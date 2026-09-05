@@ -1,0 +1,30 @@
+Autofill from resume
+Upload your resume here to autofill key application fields.
+Upload file
+Name
+Type here...
+Email
+hello@example.com...
+Resume
+No file chosen
+LinkedIn Profile
+Type here...
+Are you willing to work from our office in San Francisco, California full-time, 3+ days a week?
+Yes
+No
+If you are not located near San Francisco, California, are you willing to relocate if offered employment?
+We offer relocation assistance for new employees who are currently living in the United States.
+Yes
+No
+Are you legally authorized to work in the United States for Zyphra?
+Yes
+No
+Do you now, or will you in the future, require sponsorship for employment visa status (e.g., H-1B visa, etc.) or a visa extension in order to start or continue to work legally for Zyphra in the United States?
+Yes
+No
+Why do you want to work for Zyphra?
+Type here...
+Why would you be a good fit for this role?
+Type here...
+When is the earliest you would want to start working with us?
+Pick date...
