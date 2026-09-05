@@ -57,3 +57,34 @@ test('reach parses alongside a signed adjustment', () => {
   assert.equal(parsed[0].reach, 'moonshot');
   assert.equal(parsed[0].scoreAdjustment, 40);
 });
+
+// --- an outage is not a verdict ---------------------------------------------
+// reviewBatch falls back to MAYBE on error AND the job is marked reviewed, so it
+// never comes back. When the Anthropic credit balance ran out mid-run, 603
+// batches failed that way and 892 real verdicts were overwritten with a
+// fabricated MAYBE before anything noticed.
+
+/** Mirrors the check in reviewBatch. */
+function isSystemic(message: string): boolean {
+  return /credit balance|authentication|invalid x-api-key|permission|not_found_error/i.test(message);
+}
+
+test('failures that will not fix themselves are recognised', () => {
+  for (const message of [
+    'BadRequestError: 400 {"type":"error","error":{"message":"Your credit balance is too low"}}',
+    'AuthenticationError: invalid x-api-key',
+    'PermissionError: permission denied for this model',
+  ]) {
+    assert.ok(isSystemic(message), `should abort the run: ${message.slice(0, 50)}`);
+  }
+});
+
+test('transient failures still fall back rather than aborting', () => {
+  for (const message of [
+    'SyntaxError: Unexpected token in JSON at position 12',
+    'APIConnectionError: socket hang up',
+    'RateLimitError: 429 too many requests',
+  ]) {
+    assert.ok(!isSystemic(message), `should retry later, not abort: ${message.slice(0, 50)}`);
+  }
+});

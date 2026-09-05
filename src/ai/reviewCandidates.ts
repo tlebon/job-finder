@@ -39,6 +39,20 @@ interface BatchReviewResult {
  */
 const BATCH_SIZE = 2;
 
+/**
+ * Thrown when review cannot proceed at all - no credit, bad key, no access.
+ *
+ * Distinct from a batch that merely failed to parse. A transient failure can
+ * fall back to MAYBE and be retried later; a systemic one must stop the run,
+ * because the fallback marks jobs reviewed and they never return.
+ */
+export class ReviewUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ReviewUnavailableError';
+  }
+}
+
 async function reviewBatch(jobs: Job[], profile: Profile): Promise<BatchReviewResult[]> {
   const jobDescriptions = jobs.map((job, i) => `
 JOB ${i + 1} (ID: ${job.id}):
@@ -205,6 +219,17 @@ another and their order carries no meaning.`;
         : 0,
     }));
   } catch (error) {
+    // An outage is not a verdict. Falling back to MAYBE writes a fabricated
+    // answer AND marks the job reviewed, so it never comes back - which is how
+    // an exhausted credit balance silently overwrote 892 real verdicts with
+    // MAYBE. Anything that will not fix itself on the next batch aborts the run.
+    const message = error instanceof Error ? error.message : String(error);
+    if (/credit balance|authentication|invalid x-api-key|permission|not_found_error/i.test(message)) {
+      console.error('\n  [AI] Aborting: this will not resolve by retrying.');
+      console.error(`  [AI] ${message.slice(0, 200)}`);
+      throw new ReviewUnavailableError(message);
+    }
+
     console.error('  [AI] Batch review error:', error);
     // Return MAYBE for all jobs on error
     return jobs.map(job => ({

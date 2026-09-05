@@ -10,7 +10,7 @@
  */
 
 import { db, updateJobStatus, updateJobWithAIReview } from '../storage/db.js';
-import { reviewCandidates, type Profile } from '../ai/reviewCandidates.js';
+import { reviewCandidates, ReviewUnavailableError, type Profile } from '../ai/reviewCandidates.js';
 import type { Job } from '../types.js';
 
 /** Persist after each chunk, so a killed run keeps the work it paid for. */
@@ -88,7 +88,19 @@ export async function reviewAndPersist(
 
   for (let i = 0; i < jobs.length; i += CHUNK) {
     const chunk = jobs.slice(i, i + CHUNK);
-    const results = await reviewCandidates(chunk, profile);
+
+    let results;
+    try {
+      results = await reviewCandidates(chunk, profile);
+    } catch (error) {
+      if (error instanceof ReviewUnavailableError) {
+        // Stop rather than write fabricated verdicts over real ones for the
+        // remaining thousand jobs.
+        console.error(`\n  Stopped after ${i} of ${jobs.length}. Nothing further was written.`);
+        return tally;
+      }
+      throw error;
+    }
 
     for (const result of results) {
       if (result.suggestion === 'AUTO_DISMISS') updateJobStatus(result.jobId, 'NOT_FIT', 'ai');
