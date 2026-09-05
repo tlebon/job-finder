@@ -1,0 +1,43 @@
+Autofill from resume
+Upload your resume here to autofill key application fields.
+
+Upload file
+Name
+Type here...
+Email
+hello@example.com...
+Resume
+No file chosen
+
+Upload File
+or drag and drop here
+
+Contact number
+1-415-555-1234...
+LinkedIn
+Type here...
+Link to Github / Portfolio / Personal website
+Type here...
+What should we absolutely know about you - in just one line?
+Think of this as your super-condensed cover letter.
+
+Type here...
+Why Granola?
+In 5 sentences or less, share why you'd love to be part of our team.
+
+Type here...
+
+What are your salary expectations?
+Type here...
+Are you happy to work from our Old Street office 5 days a week?
+While there's plenty of flexibility for life's demands, our success is built on face-to-face collaboration and we spend time together, in person, every day.
+
+Yes
+No
+Do you require visa sponsorship to work within the UK?
+Yes
+No
+What is your notice period?
+Type here...
+How did you hear about us? 
+Type here...

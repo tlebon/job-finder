@@ -16,3 +16,4 @@ data/examples/
 # JSearch rate limit cache
 .jsearch-cache.json
 data/*.jsonl
+data/embeddings/
