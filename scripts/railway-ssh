@@ -1,0 +1,18 @@
+#!/bin/sh
+#
+# One place for the Railway connection details, so the pre-push hook and any
+# operational script share them.
+#
+# SSH_AUTH_SOCK is cleared and IdentityAgent disabled: the default key lives in
+# 1Password, and while the machine is locked that agent holds no identities and
+# ssh aborts on the failure rather than falling through to the -i key.
+BIN="$(mktemp -d)"
+cat > "$BIN/ssh" <<'INNER'
+#!/bin/sh
+exec /usr/bin/ssh -o IdentityAgent=none -o IdentitiesOnly=yes "$@"
+INNER
+chmod +x "$BIN/ssh"
+PATH="$BIN:$PATH" exec npx --yes @railway/cli ssh -i "$HOME/.ssh/mu" \
+  --project cb8b25c7-b1f9-4cad-a63b-b5b7816834f9 \
+  --environment f1664d45-ae25-4fec-8524-f38821c55341 \
+  --service e30624dc-0787-46c7-8d5a-3c6c5d570fd2 "$@"

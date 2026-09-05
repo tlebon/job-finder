@@ -1,0 +1,34 @@
+#!/bin/sh
+#
+# Refuse to push while a long job is running on production.
+#
+# A push triggers a Railway deploy, which restarts the container and kills
+# anything running in it. That has destroyed six long-running jobs this week -
+# review passes, enrichment runs, dead-link sweeps - each time silently, and
+# each time after promising to be careful. Discipline has not worked, so this
+# checks instead.
+#
+# Override with SKIP_DEPLOY_CHECK=1 git push, for when killing the job is the
+# intent.
+
+[ -n "$SKIP_DEPLOY_CHECK" ] && exit 0
+
+RW="$(git rev-parse --show-toplevel)/scripts/railway-ssh"
+[ -x "$RW" ] || exit 0   # no helper, nothing to check
+
+running=$("$RW" "for p in /proc/[0-9]*; do
+    grep -qa 'tsx src/' \$p/cmdline 2>/dev/null && tr '\0' ' ' < \$p/cmdline | cut -c1-90 && echo
+  done" 2>/dev/null | grep 'tsx src/' | grep -v 'grep -qa' | grep -v 'sh -c' | head -3)
+
+if [ -n "$running" ]; then
+  echo ""
+  echo "  A job is running on production and this push would kill it:"
+  echo ""
+  echo "$running" | sed 's/^/    /'
+  echo ""
+  echo "  Wait for it, or: SKIP_DEPLOY_CHECK=1 git push"
+  echo ""
+  exit 1
+fi
+
+exit 0
