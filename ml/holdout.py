@@ -52,7 +52,12 @@ def frame(rows: list[dict]) -> pd.DataFrame:
 
 
 def main() -> None:
-    labels = [r for r in read("data/labels.jsonl") if r.get("human_label") is not None and r.get("text")]
+    labels = [r for r in read("data/labels.jsonl")
+              if r.get("human_label") is not None and r.get("text")
+              # Triage rows are the live candidate list ranked best-first, not a
+              # random draw. Including them would put a deliberately skewed
+              # sample into an evaluation that assumes one.
+              and r.get("stratum") != "triage"]
     held = [r for r in labels if str(r.get("stratum", "")).startswith("reject|")]
     dev = [r for r in labels if not str(r.get("stratum", "")).startswith("reject|")]
 

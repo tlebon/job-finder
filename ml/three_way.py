@@ -44,7 +44,9 @@ def key(r: dict) -> str:
 
 
 def main(train_path: str, labels_path: str) -> None:
-    labels = [r for r in read(labels_path) if r.get("human_label") is not None and r.get("text")]
+    labels = [r for r in read(labels_path)
+              if r.get("human_label") is not None and r.get("text")
+              and r.get("stratum") != "triage"]
     print(f"{len(labels)} rows Tim labelled")
 
     held = {key(r) for r in labels}

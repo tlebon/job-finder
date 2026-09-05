@@ -30,7 +30,7 @@ interface Row {
 const rows = db.prepare(`
   SELECT title, company, location, url, description, source,
          gate_passed, regex_score, sampling_prob, human_label
-  FROM label_sample WHERE human_label IS NOT NULL
+  FROM label_sample WHERE human_label IS NOT NULL AND stratum <> 'triage'
 `).all() as Row[];
 
 if (rows.length < 30) {

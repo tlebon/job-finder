@@ -14,6 +14,16 @@
  *   npx tsx src/build-label-sample.ts --dry-run
  *   npx tsx src/build-label-sample.ts --confirm [--target=300] [--floor=8]
  *   npx tsx src/build-label-sample.ts --from=rejects --confirm [--target=200]
+ *   npx tsx src/build-label-sample.ts --from=active --confirm [--target=300]
+ *
+ * --from=active is triage rather than sampling: the live candidate list, best
+ * first by model score, queued into the same keyboard-driven UI. Every yes is a
+ * job worth applying to rather than only a label, which is the point - scrolling
+ * a page of 800 is not a decision procedure.
+ *
+ * Those rows carry stratum 'triage' and a sampling probability of 1, because
+ * they are not a random draw and must never be mistaken for one. The evaluation
+ * scripts exclude them by that marker.
  *
  * --from=rejects draws a second batch out of rejected_jobs, which the first
  * batch could not reach because rejects were not stored then. It skips the
@@ -49,6 +59,62 @@ const floor = arg('floor', 8);
 const confirm = process.argv.includes('--confirm');
 
 const fromRejects = process.argv.includes('--from=rejects');
+const fromActive = process.argv.includes('--from=active');
+
+if (fromActive) {
+  const rows = db.prepare(`
+    SELECT id, url, title, company, location, description, source, score,
+           COALESCE(model_score, 0) model_score, ai_suggestion, ai_reach
+    FROM jobs
+    WHERE status NOT IN ('NOT_FIT', 'ARCHIVED', 'DEAD', 'EXPIRED', 'APPLIED', 'INTERVIEW')
+      AND LENGTH(description) > 400
+      AND url NOT IN (SELECT url FROM label_sample)
+    ORDER BY
+      CASE ai_suggestion WHEN 'STRONG_FIT' THEN 0 WHEN 'GOOD_FIT' THEN 1
+                         WHEN 'MAYBE' THEN 2 ELSE 3 END,
+      model_score DESC,
+      score DESC
+    LIMIT ?
+  `).all(target) as {
+    id: string; url: string; title: string; company: string; location: string;
+    description: string; source: string; score: number; model_score: number;
+    ai_suggestion: string | null; ai_reach: string | null;
+  }[];
+
+  console.log(`${rows.length} active candidates queued for triage, best first`);
+  const byVerdict = rows.reduce<Record<string, number>>((a, r) => {
+    const k = `${r.ai_suggestion ?? 'unreviewed'}/${r.ai_reach ?? '-'}`;
+    a[k] = (a[k] ?? 0) + 1;
+    return a;
+  }, {});
+  for (const [k, n] of Object.entries(byVerdict).sort((a, b) => b[1] - a[1]).slice(0, 8)) {
+    console.log(`  ${k.padEnd(24)}${n}`);
+  }
+
+  const start = ((db.prepare('SELECT MAX(display_order) m FROM label_sample').get() as { m: number | null }).m ?? 0) + 1;
+  const picked = rows.map((r, i) => ({
+    id: `ls_${createHash('sha1').update(r.url).digest('hex').slice(0, 24)}`,
+    source: r.source, title: r.title, company: r.company,
+    location: r.location || 'Not stated',
+    description: r.description, url: r.url,
+    gate_passed: 1, regex_score: r.score,
+    // Not a random draw, and marked so nothing mistakes it for one.
+    stratum: 'triage', sampling_prob: 1, stratum_size: rows.length,
+    // Ranked order is kept: the best candidates first, so stopping early still
+    // means having seen the best of them.
+    display_order: start + i,
+  }));
+
+  console.log(`\nTotal to triage: ${picked.length}`);
+  if (!confirm) {
+    console.log('DRY RUN: pass --confirm to queue.');
+    process.exit(0);
+  }
+  const n = insertLabelRows(picked);
+  const p = labelProgress();
+  console.log(`Queued ${n}. ${p.labelled}/${p.total} done overall.`);
+  process.exit(0);
+}
 
 /**
  * Rules that reject on what the job *is*. Measured at zero false negatives over
