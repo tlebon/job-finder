@@ -41,13 +41,19 @@ interface BatchReviewResult {
 const BATCH_SIZE = 5;
 
 /**
- * Which model reviews. Swappable, because this is classification against a
- * fixed rubric rather than open reasoning, and the cheaper tier may well match
- * it - a question to settle with ml/compare_models.ts against Tim's own labels
- * rather than by argument. Cover letter generation stays on Sonnet; that is
- * writing, where the tier shows.
+ * Haiku, measured rather than assumed.
+ *
+ * Over 120 dev-set rows scored against Tim's own labels, Haiku 4.5 and Sonnet
+ * 4.5 were indistinguishable - 68% recall, ~50% precision and 76% agreement
+ * apiece - at roughly a third of the price. This is classification against a
+ * fixed rubric, not open reasoning, and the tier was earning nothing.
+ *
+ * Re-run src/compare-review-models.ts after any material change to the prompt;
+ * a harder rubric could start to separate them.
+ *
+ * Cover letter generation stays on Sonnet. That is writing, where it shows.
  */
-const REVIEW_MODEL = process.env.REVIEW_MODEL || 'claude-sonnet-4-5-20250929';
+const REVIEW_MODEL = process.env.REVIEW_MODEL || 'claude-haiku-4-5-20251001';
 
 /**
  * Thrown when review cannot proceed at all - no credit, bad key, no access.
