@@ -16,18 +16,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 
-interface Previous { company: string; answer: string }
+interface Previous { company: string; answer: string; similarity?: number }
 interface Question {
   id: string; question: string; kind: string;
   lengthLimit?: string; answer?: string; previous: Previous[];
 }
 interface Evidence { id: string; content: string; date: string; track: string }
+interface Highlight { sentence: string; matched: string[] }
+interface Neighbour { company: string; similarity: number }
 
 export default function ApplicationPage() {
   const { slug } = useParams<{ slug: string }>();
   const [company, setCompany] = useState('');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [evidence, setEvidence] = useState<Evidence[]>([]);
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [neighbours, setNeighbours] = useState<Neighbour[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [evidenceFilter, setEvidenceFilter] = useState('');
@@ -40,6 +44,8 @@ export default function ApplicationPage() {
     setCompany(data.company);
     setQuestions(data.questions ?? []);
     setEvidence(data.evidence ?? []);
+    setHighlights(data.highlights ?? []);
+    setNeighbours(data.neighbours ?? []);
     setDrafts(Object.fromEntries((data.questions ?? []).map((q: Question) => [q.id, q.answer ?? ''])));
     setLoading(false);
   }, [slug]);
@@ -79,6 +85,32 @@ export default function ApplicationPage() {
         </p>
       </header>
 
+      {(highlights.length > 0 || neighbours.length > 0) && (
+        <section className="mb-6 rounded-lg border border-[var(--border)] bg-[var(--cream-dark)] p-4">
+          {highlights.length > 0 && (
+            <>
+              <h2 className="text-sm font-semibold">In this posting, things you tend to respond to</h2>
+              <ul className="mt-2 space-y-2">
+                {highlights.map((h, i) => (
+                  <li key={i} className="text-sm">
+                    <span className="italic">&ldquo;{h.sentence}&rdquo;</span>
+                    <span className="ml-2 text-xs text-[var(--ink-muted)]">
+                      {h.matched.join(' · ')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {neighbours.length > 0 && (
+            <p className="mt-3 text-xs text-[var(--ink-muted)]">
+              Closest companies you have written for:{' '}
+              {neighbours.map(n => `${n.company} (${Math.round(n.similarity * 100)}%)`).join(', ')}
+            </p>
+          )}
+        </section>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <section className="space-y-4">
           {questions.map(q => (
@@ -94,6 +126,9 @@ export default function ApplicationPage() {
                 <div key={i} className="mt-2 rounded border-l-2 border-[var(--accent)] bg-[var(--cream-dark)] p-2 text-sm">
                   <div className="mb-1 text-xs text-[var(--ink-muted)]">
                     what you wrote for {p.company}
+                    {p.similarity !== undefined && p.similarity > 0.05 && (
+                      <span className="ml-1">· {Math.round(p.similarity * 100)}% similar company</span>
+                    )}
                   </div>
                   <p className="whitespace-pre-wrap">{p.answer}</p>
                   <button onClick={() => setDrafts(d => ({ ...d, [q.id]: p.answer }))}
