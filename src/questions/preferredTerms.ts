@@ -22,7 +22,12 @@ const STOP = new Set(
 );
 
 function terms(text: string): string[] {
-  return (text.toLowerCase().match(/[\p{L}][\p{L}\p{N}+#.-]{2,}/gu) ?? []).filter(t => !STOP.has(t));
+  return (text.toLowerCase().match(/[\p{L}][\p{L}\p{N}+#.-]{2,}/gu) ?? [])
+    // Trailing punctuation was left attached, so "platform." and "development."
+    // counted as terms distinct from "platform" and "development" - splitting
+    // each one's evidence across two entries.
+    .map(t => t.replace(/[.\-]+$/, ''))
+    .filter(t => t.length > 2 && !STOP.has(t));
 }
 
 export interface LabelledText { text: string; liked: boolean }
