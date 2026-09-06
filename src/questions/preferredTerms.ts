@@ -31,7 +31,7 @@ export interface LabelledText { text: string; liked: boolean }
  * Log-odds per term. Smoothed, because a term appearing in three yes-postings
  * and no no-postings would otherwise get an infinite weight and dominate.
  */
-export function learnPreferences(labelled: LabelledText[], minDocs = 4): Map<string, number> {
+export function learnPreferences(labelled: LabelledText[], minDocs = 4, minShare = 0.08): Map<string, number> {
   const yes = new Map<string, number>();
   const no = new Map<string, number>();
   let nYes = 0, nNo = 0;
@@ -50,6 +50,14 @@ export function learnPreferences(labelled: LabelledText[], minDocs = 4): Map<str
     const n = no.get(t) ?? 0;
     // Too rare to estimate. Without this the list fills with terms seen twice.
     if (y + n < minDocs) continue;
+
+    // And too rare to be characteristic. A term appearing in three of ninety
+    // liked postings can still carry a high log-odds if it appears in none of
+    // the disliked ones, which is how "because", "ran" and "staying" ended up
+    // marked as things Tim responds to. Being distinctive is not enough - it
+    // also has to be common in what he likes.
+    if (y / nYes < minShare) continue;
+
     const pYes = (y + 0.5) / (nYes + 1);
     const pNo = (n + 0.5) / (nNo + 1);
     weights.set(t, Math.log(pYes / pNo));
@@ -76,12 +84,18 @@ export function highlight(text: string, weights: Map<string, number>, limit = 3)
       const seen = [...new Set(terms(sentence))];
       const scored = seen
         .map(t => ({ t, w: weights.get(t) ?? 0 }))
-        .filter(x => x.w > 0.25)
+        // 0.7 rather than 0.25: at the lower threshold a sentence qualified on
+        // four barely-positive words, so the top highlight was scale-bragging
+        // about Docker pulls and Fortune 50 logos. Roughly twice as likely in a
+        // liked posting as a disliked one is the bar worth reporting.
+        .filter(x => x.w > 0.7)
         .sort((a, b) => b.w - a.w);
       const score = scored.length ? scored.reduce((a, x) => a + x.w, 0) / Math.sqrt(seen.length) : 0;
       return { sentence, score, matched: scored.slice(0, 4).map(x => x.t) };
     })
-    .filter(h => h.score > 0 && h.matched.length >= 2)
+    // Three matches, not two: with two, a sentence could qualify on a pair of
+    // incidental words.
+    .filter(h => h.score > 0 && h.matched.length >= 3)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
