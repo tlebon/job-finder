@@ -37,6 +37,8 @@ export interface Question {
   jobId?: string;
   ats?: Ats;
   lengthLimit?: string;
+  /** The choices, when the field offers them rather than free text. */
+  options?: string[];
   answer?: string;
   provenance?: Provenance;
   lastConfirmed?: string;
@@ -49,6 +51,7 @@ interface Row {
   company: string | null; job_id: string | null; ats: string | null;
   length_limit: string | null; answer: string | null; provenance: string | null;
   last_confirmed: string | null; created_at: string | null; times_used?: number;
+  options: string | null;
 }
 
 function toQuestion(r: Row): Question {
@@ -61,6 +64,7 @@ function toQuestion(r: Row): Question {
     jobId: r.job_id ?? undefined,
     ats: (r.ats as Ats) ?? undefined,
     lengthLimit: r.length_limit ?? undefined,
+    options: r.options ? (JSON.parse(r.options) as string[]) : undefined,
     answer: r.answer ?? undefined,
     provenance: (r.provenance as Provenance) ?? undefined,
     lastConfirmed: r.last_confirmed ?? undefined,
@@ -76,13 +80,13 @@ export function saveQuestion(q: Omit<Question, 'id' | 'normalizedKey'> & { id?: 
   db.prepare(`
     INSERT INTO application_questions
       (id, normalized_key, question_text, kind, company, job_id, ats,
-       length_limit, answer, provenance, last_confirmed)
+       length_limit, options, answer, provenance, last_confirmed)
     VALUES (@id, @key, @text, @kind, @company, @jobId, @ats,
-            @lengthLimit, @answer, @provenance, @lastConfirmed)
+            @lengthLimit, @options, @answer, @provenance, @lastConfirmed)
     ON CONFLICT(id) DO UPDATE SET
       question_text = @text, kind = @kind, company = @company, job_id = @jobId,
-      ats = @ats, length_limit = @lengthLimit, answer = @answer,
-      provenance = @provenance, last_confirmed = @lastConfirmed
+      ats = @ats, length_limit = @lengthLimit, options = @options,
+      answer = @answer, provenance = @provenance, last_confirmed = @lastConfirmed
   `).run({
     id,
     // Without the company: two companies asking the same question are two
@@ -95,6 +99,7 @@ export function saveQuestion(q: Omit<Question, 'id' | 'normalizedKey'> & { id?: 
     jobId: q.jobId ?? null,
     ats: q.ats ?? null,
     lengthLimit: q.lengthLimit ?? null,
+    options: q.options?.length ? JSON.stringify(q.options) : null,
     answer: q.answer ?? null,
     // Approval is not authorship. A Claude-drafted answer Tim approved is still
     // 'claude'; only editing it makes it 'tim_edited'. Same rule as the letter

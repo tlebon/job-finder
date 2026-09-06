@@ -44,7 +44,8 @@ const companyOf = (file: string) => {
 };
 
 interface Seed {
-  question: string; kind: string; company: string; ats: string; lengthLimit?: string;
+  question: string; kind: string; company: string; ats: string;
+  lengthLimit?: string; options?: string[];
 }
 
 const seen = new Map<string, Seed>();
@@ -68,7 +69,13 @@ for (const file of readdirSync(dir).filter(f => f.endsWith('.txt'))) {
     // First sighting wins, so the earliest company is credited and later
     // phrasings of the same question do not create duplicates.
     if (!seen.has(key)) {
-      seen.set(key, { question: field.question, kind: field.kind, company, ats, lengthLimit: field.lengthLimit });
+      seen.set(key, {
+        question: field.question, kind: field.kind, company, ats,
+        lengthLimit: field.lengthLimit,
+        // The parser has always found these; nothing stored them, so every
+        // Yes/No field arrived as an empty textarea.
+        options: field.options,
+      });
     }
   }
 }
@@ -80,6 +87,26 @@ const existing = new Set(
   (db.prepare('SELECT normalized_key FROM application_questions').all() as { normalized_key: string }[])
     .map(r => r.normalized_key)
 );
+
+if (process.argv.includes('--backfill-options')) {
+  // The first 43 were seeded before the options column existed, so every
+  // Yes/No question among them renders as a free-text box.
+  // Matched on the question text, not the normalised key. The key is derived
+  // by normalizeQuestion, which changed after these rows were seeded, so the
+  // stored keys no longer match anything this run computes - the first version
+  // of this backfill matched zero rows and reported success.
+  const update = db.prepare(
+    'UPDATE application_questions SET options = ? WHERE question_text = ? AND options IS NULL'
+  );
+  let n = 0;
+  for (const [, s2] of seen) {
+    if (!s2.options?.length) continue;
+    n += update.run(JSON.stringify(s2.options), s2.question).changes;
+  }
+  console.log(`${confirm ? 'Backfilled' : 'Would backfill'} options on ${n} questions`);
+  if (!confirm) console.log('DRY RUN: pass --confirm.');
+  process.exit(0);
+}
 
 const fresh = [...seen.entries()].filter(([key]) => !existing.has(key));
 console.log(`${fresh.length} not already in the bank:\n`);
@@ -99,6 +126,7 @@ for (const [, s] of fresh) {
     company: s.company,
     ats: s.ats as never,
     lengthLimit: s.lengthLimit,
+    options: s.options,
   });
 }
 console.log(`\nSeeded ${fresh.length} questions. Answer them at /questions`);
