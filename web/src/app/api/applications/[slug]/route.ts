@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { companySection, rankBySimilarity } from '@shared/questions/companySimilarity';
 import { learnPreferences, highlight } from '@shared/questions/preferredTerms';
+import { postingFacts } from '@shared/questions/postingFacts';
 
 const slugify = (s: string) =>
   (s || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -9,7 +10,7 @@ const slugify = (s: string) =>
 interface Row {
   id: string; question_text: string; kind: string; company: string | null;
   job_id: string | null; ats: string | null; length_limit: string | null;
-  answer: string | null; provenance: string | null;
+  answer: string | null; provenance: string | null; options: string | null;
 }
 
 /**
@@ -25,7 +26,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string }> }
   const { slug } = await ctx.params;
 
   const all = db.prepare(`
-    SELECT id, question_text, kind, company, job_id, ats, length_limit, answer, provenance
+    SELECT id, question_text, kind, company, job_id, ats, length_limit, answer, provenance, options
     FROM application_questions
     WHERE kind <> 'mechanical'
     ORDER BY (answer IS NULL OR answer = '') DESC, created_at
@@ -48,11 +49,32 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string }> }
    * ordered by company similarity rather than by recency or by who happened to
    * phrase a question the same way.
    */
+  /**
+   * The posting behind each application.
+   *
+   * Falls back to matching on company name when job_id is null. The seeded
+   * questions came from forms Tim pasted before the picker existed, so none of
+   * them are linked - and without a posting there is no salary to show, no
+   * blurb, and nothing to compare for similarity. Matching by name recovers all
+   * of that for the six already filed.
+   */
   const blurbs = db.prepare(`
-    SELECT DISTINCT q.company, j.description
-    FROM application_questions q JOIN jobs j ON j.id = q.job_id
-    WHERE q.company IS NOT NULL AND j.description IS NOT NULL
-  `).all() as { company: string; description: string }[];
+    SELECT DISTINCT q.company,
+           COALESCE(j.description, k.description) description,
+           COALESCE(j.title, k.title) title,
+           COALESCE(j.location, k.location) location,
+           COALESCE(j.url, k.url) url
+    FROM application_questions q
+    LEFT JOIN jobs j ON j.id = q.job_id
+    LEFT JOIN jobs k ON k.id = (
+      SELECT id FROM jobs
+      WHERE company LIKE q.company COLLATE NOCASE
+        AND status NOT IN ('DEAD','EXPIRED')
+      ORDER BY COALESCE(model_score, 0) DESC LIMIT 1
+    )
+    WHERE q.company IS NOT NULL
+      AND COALESCE(j.description, k.description) IS NOT NULL
+  `).all() as { company: string; description: string; title: string; location: string; url: string }[];
 
   const here = blurbs.find(b => slugify(b.company) === slug);
   const nearness = new Map<string, number>();
@@ -97,6 +119,19 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string }> }
     }
   }
 
+  // What the posting itself states. Answering "what are your salary
+  // expectations" without seeing what they published is answering blind.
+  const facts = here ? postingFacts(here.description) : {};
+  const role = here
+    ? {
+        title: here.title,
+        location: here.location,
+        url: here.url,
+        blurb: companySection(here.description, 900),
+        ...facts,
+      }
+    : undefined;
+
   // Companies Tim has already written for, nearest first. Useful even when no
   // question matches: "you wrote about Proton, which is the closest thing here"
   // is a starting point.
@@ -106,6 +141,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string }> }
     .map(([company, score]) => ({ company, similarity: Number(score.toFixed(3)) }));
 
   return NextResponse.json({
+    role,
     neighbours,
     highlights,
     company: mine[0].company ?? 'Unfiled',
@@ -117,6 +153,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string }> }
       kind: r.kind,
       lengthLimit: r.length_limit ?? undefined,
       answer: r.answer ?? undefined,
+      options: r.options ? (JSON.parse(r.options) as string[]) : undefined,
       previous: all
         .filter(o => o.id !== r.id && o.answer && strip(o.question_text, o.company) === strip(r.question_text, r.company))
         .map(o => ({

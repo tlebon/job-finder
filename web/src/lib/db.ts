@@ -101,7 +101,8 @@ function getDb(): Database.Database {
       length_limit TEXT,
       embedding BLOB,
       cluster_id INTEGER,
-      last_confirmed TEXT
+      last_confirmed TEXT,
+      options TEXT
     )
   `);
   _db.exec(`
@@ -118,7 +119,7 @@ function getDb(): Database.Database {
   // first, without these.
   for (const column of [
     "kind TEXT DEFAULT 'prose'", 'ats TEXT', 'length_limit TEXT',
-    'embedding BLOB', 'cluster_id INTEGER', 'last_confirmed TEXT',
+    'embedding BLOB', 'cluster_id INTEGER', 'last_confirmed TEXT', 'options TEXT',
   ]) {
     try {
       _db.exec(`ALTER TABLE application_questions ADD COLUMN ${column}`);

@@ -19,11 +19,15 @@ import { useParams } from 'next/navigation';
 interface Previous { company: string; answer: string; similarity?: number }
 interface Question {
   id: string; question: string; kind: string;
-  lengthLimit?: string; answer?: string; previous: Previous[];
+  lengthLimit?: string; answer?: string; options?: string[]; previous: Previous[];
 }
 interface Evidence { id: string; content: string; date: string; track: string }
 interface Highlight { sentence: string; matched: string[] }
 interface Neighbour { company: string; similarity: number }
+interface Role {
+  title?: string; location?: string; url?: string; blurb?: string;
+  salary?: string; remote?: string; onsiteDays?: string;
+}
 
 export default function ApplicationPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -32,6 +36,7 @@ export default function ApplicationPage() {
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [neighbours, setNeighbours] = useState<Neighbour[]>([]);
+  const [role, setRole] = useState<Role | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [evidenceFilter, setEvidenceFilter] = useState('');
@@ -46,6 +51,7 @@ export default function ApplicationPage() {
     setEvidence(data.evidence ?? []);
     setHighlights(data.highlights ?? []);
     setNeighbours(data.neighbours ?? []);
+    setRole(data.role ?? null);
     setDrafts(Object.fromEntries((data.questions ?? []).map((q: Question) => [q.id, q.answer ?? ''])));
     setLoading(false);
   }, [slug]);
@@ -80,9 +86,50 @@ export default function ApplicationPage() {
     <main className="mx-auto max-w-6xl p-4 sm:p-6">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold">{company}</h1>
-        <p className="text-sm text-[var(--ink-muted)]">
+        {role?.title && (
+          <p className="text-[var(--ink-muted)]">
+            {role.url ? (
+              <a href={role.url} target="_blank" rel="noopener noreferrer" className="underline">
+                {role.title}
+              </a>
+            ) : role.title}
+            {role.location ? ` · ${role.location}` : ''}
+          </p>
+        )}
+        {/* What the posting states, so the salary and logistics answers are not
+            written blind. Absent when the posting does not say - which is most
+            of the time for salary, and worth showing as absence rather than
+            filling in with a guess. */}
+        {role && (role.salary || role.remote || role.onsiteDays) && (
+          <p className="mt-1 flex flex-wrap gap-2 text-sm">
+            {role.salary && (
+              <span className="rounded bg-[var(--success-light)] px-2 py-0.5 text-[var(--success)]">
+                {role.salary}
+              </span>
+            )}
+            {role.onsiteDays && (
+              <span className="rounded bg-[var(--warning-light)] px-2 py-0.5 text-[var(--warning)]">
+                {role.onsiteDays} in office
+              </span>
+            )}
+            {role.remote && !role.onsiteDays && (
+              <span className="rounded bg-[var(--cream-dark)] px-2 py-0.5 text-[var(--ink-muted)]">
+                {role.remote}
+              </span>
+            )}
+          </p>
+        )}
+        <p className="mt-1 text-sm text-[var(--ink-muted)]">
           {done} of {questions.length} answered
         </p>
+        {role?.blurb && (
+          <details className="mt-2">
+            <summary className="cursor-pointer text-sm text-[var(--ink-muted)]">
+              What they say about themselves
+            </summary>
+            <p className="mt-2 whitespace-pre-wrap text-sm">{role.blurb}</p>
+          </details>
+        )}
       </header>
 
       {(highlights.length > 0 || neighbours.length > 0) && (
@@ -136,11 +183,35 @@ export default function ApplicationPage() {
                 </div>
               ))}
 
+              {/* A Yes/No field answered by typing prose is silly. Where the
+                  form offered choices, offer the same choices - and still allow
+                  free text underneath, since some of these want a note. */}
+              {q.options && q.options.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {q.options.map(o => (
+                    <button
+                      key={o}
+                      onClick={() => setDrafts(d => ({ ...d, [q.id]: o }))}
+                      className={
+                        (drafts[q.id] ?? '') === o
+                          ? 'rounded-full border border-[var(--accent)] bg-[var(--accent)] px-3 py-1 text-sm text-[var(--cream)]'
+                          : 'rounded-full border border-[var(--border)] px-3 py-1 text-sm hover:border-[var(--accent)]'
+                      }
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <textarea
                 value={drafts[q.id] ?? ''}
                 onChange={e => setDrafts(d => ({ ...d, [q.id]: e.target.value }))}
-                placeholder="Your answer"
-                className="mt-2 h-28 w-full resize-y rounded border border-[var(--border)] bg-[var(--cream)] p-2 text-sm"
+                placeholder={q.options?.length ? 'Or write something' : 'Your answer'}
+                className={
+                  'mt-2 w-full resize-y rounded border border-[var(--border)] bg-[var(--cream)] p-2 text-sm ' +
+                  (q.options?.length ? 'h-16' : 'h-28')
+                }
               />
               <div className="mt-2 flex items-center gap-3">
                 <button onClick={() => void save(q.id)}
@@ -156,7 +227,10 @@ export default function ApplicationPage() {
           ))}
         </section>
 
-        <aside className="lg:sticky lg:top-4 lg:self-start">
+        {/* Sticky and independently scrollable: the evidence list is longer
+            than most forms, and scrolling the page to reach a bullet loses
+            sight of the answer box it is meant to feed. */}
+        <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto">
           <h2 className="text-sm font-semibold">Your evidence</h2>
           <p className="mt-1 text-xs text-[var(--ink-muted)]">
             From six CV versions. Click to append to the answer you last edited.
@@ -167,7 +241,7 @@ export default function ApplicationPage() {
             placeholder="filter — pytorch, wire, encryption…"
             className="mt-2 w-full rounded border border-[var(--border)] bg-[var(--cream)] px-2 py-1 text-sm"
           />
-          <ul className="mt-2 space-y-2">
+          <ul className="mt-2 space-y-2 pb-4">
             {shownEvidence.map(e => (
               <li key={e.id}>
                 <button

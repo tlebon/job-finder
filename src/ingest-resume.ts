@@ -88,6 +88,11 @@ function extract(file: string): string {
 function isHeading(line: string): boolean {
   if (/^[A-Z][A-Z\s/&]{4,}$/.test(line)) return true;          // ALL CAPS section
   if (line.includes('|')) return true;                          // company | dates
+  // A closing bracket means this finishes a clause above it, not a title.
+  // Without this, "Prisma)" read as a heading and cut a bullet off at
+  // "...NestJS, PostgreSQL,".
+  if (/[)\]]/.test(line)) return false;
+  if (/^[a-z]/.test(line)) return false;                        // clearly a continuation
   return line.length < 55 && !/[,.;:]/.test(line) && /^[A-Z]/.test(line);
 }
 
@@ -103,7 +108,9 @@ function bullets(text: string): string[] {
     if (/^[•\-·]\s/.test(line)) {
       if (current) out.push(current);
       current = line.replace(/^[•\-·]\s*/, '');
-    } else if (current && line && !isHeading(line)) {
+    } else if (current && line && (/[,(\-]$/.test(current) || !isHeading(line))) {
+      // A bullet ending in a comma, open bracket or hyphen is mid-clause, so
+      // whatever follows continues it whatever shape it has.
       current += ' ' + line;
     } else if (current) {
       out.push(current);
@@ -148,6 +155,17 @@ const existing = new Set(
 
 interface Bullet { content: string; track: RoleTrack; label: string; date: string }
 
+const wordsOf = (s: string) => new Set(s.toLowerCase().match(/[a-z0-9]+/g) ?? []);
+
+/** Share of the shorter bullet's words that the longer one also has. */
+function overlap(a: Set<string>, b: Set<string>): number {
+  const [small, large] = a.size < b.size ? [a, b] : [b, a];
+  if (!small.size) return 0;
+  let shared = 0;
+  for (const w of small) if (large.has(w)) shared++;
+  return shared / small.size;
+}
+
 let found = 0;
 /** Everything extracted, deduplicated across variants. What --export writes. */
 const all: Bullet[] = [];
@@ -168,6 +186,24 @@ for (const src of SOURCES) {
     // ordered newest first, so a bullet still in the current CV is credited to
     // it rather than to an older draft.
     if (seenHere.has(key)) continue;
+
+    // Near-duplicates, not just exact ones. The CV variants reword the same
+    // achievement - "Built a CI/CD pipeline with code signing and notarization
+    // for a new Electron client" against the same sentence plus "; delivered
+    // multiple on-time releases" - and exact matching kept both, so the sidebar
+    // showed one achievement three times. Keep the fullest version.
+    const mine = wordsOf(content);
+    let supersededBy = -1;
+    for (let i = 0; i < all.length; i++) {
+      if (overlap(mine, wordsOf(all[i].content)) > 0.8) { supersededBy = i; break; }
+    }
+    if (supersededBy >= 0) {
+      if (content.length > all[supersededBy].content.length) {
+        all[supersededBy] = { content, track: src.track, label: src.label, date: src.date };
+      }
+      continue;
+    }
+
     seenHere.add(key);
     const bullet = { content, track: src.track, label: src.label, date: src.date };
     all.push(bullet);

@@ -137,6 +137,10 @@ export function initChunkStore(): void {
     // becomes eighteen months. A stale answer is worse than none, because it
     // gets pasted without rereading.
     'last_confirmed TEXT',
+    // The choices, when a field offers them rather than free text. Six real
+    // forms are full of Yes/No and Select... fields, and answering those by
+    // typing prose is silly.
+    'options TEXT',
   ]) {
     try {
       db.exec(`ALTER TABLE application_questions ADD COLUMN ${column}`);

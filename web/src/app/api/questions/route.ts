@@ -53,8 +53,8 @@ export async function POST(request: Request) {
   if (Array.isArray(body.fields)) {
     const insert = db.prepare(`
       INSERT INTO application_questions
-        (id, normalized_key, question_text, kind, company, job_id, ats, length_limit)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (id, normalized_key, question_text, kind, company, job_id, ats, length_limit, options)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const normalize = (t: string) => t.toLowerCase()
       .replace(/[^a-z0-9\s]/g, '')
@@ -65,7 +65,9 @@ export async function POST(request: Request) {
     const run = db.transaction((fields: Record<string, string>[]) => {
       for (const f of fields) {
         insert.run(randomUUID(), normalize(f.question), f.question, f.kind ?? 'prose',
-          body.company ?? null, body.jobId ?? null, body.ats ?? null, f.lengthLimit ?? null);
+          body.company ?? null, body.jobId ?? null, body.ats ?? null, f.lengthLimit ?? null,
+          // A Yes/No field answered by typing prose is silly; keep the choices.
+          Array.isArray(f.options) && f.options.length ? JSON.stringify(f.options) : null);
         added++;
       }
     });
