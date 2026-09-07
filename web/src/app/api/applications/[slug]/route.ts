@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { companySection, rankBySimilarity } from '@shared/questions/companySimilarity';
+import { companySection, postingFacts, rankBySimilarity, salaryReference } from '@shared/questions/postingAnalysis';
 import { learnPreferences, highlight } from '@shared/questions/preferredTerms';
-import { postingFacts } from '@shared/questions/postingFacts';
 
 const slugify = (s: string) =>
   (s || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -127,10 +126,38 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string }> }
         title: here.title,
         location: here.location,
         url: here.url,
-        blurb: companySection(here.description, 900),
+        // The whole thing. 900 characters cut Proton off mid-sentence at
+        // "What", and it sits inside a collapsed <details> so length costs
+        // nothing until it is opened.
+        blurb: companySection(here.description, 12000),
         ...facts,
       }
     : undefined;
+
+  /**
+   * What comparable roles pay.
+   *
+   * Compared against roles like this one rather than everything in the country:
+   * "Senior Machine Learning Engineer, Berlin" and "Junior Frontend Developer,
+   * Berlin" are the same location bucket and nothing alike, and a median over
+   * both answers neither question.
+   */
+  let salary = null;
+  if (here && mine.some(q => /salary|compensation/i.test(q.question_text))) {
+    const corpus = db.prepare(`
+      SELECT id, title, company, location, description FROM jobs
+      WHERE description IS NOT NULL AND LENGTH(description) > 400
+        AND status NOT IN ('DEAD','EXPIRED')
+        AND description LIKE '%€%' OR description LIKE '%$%' OR description LIKE '%salary%'
+      LIMIT 4000
+    `).all() as { id: string; title: string; company: string; location: string; description: string }[];
+
+    const ref = salaryReference(
+      { id: 'target', title: here.title, company: mine[0].company ?? '', location: here.location, description: here.description },
+      corpus
+    );
+    if (ref.n >= 3) salary = ref;
+  }
 
   // Companies Tim has already written for, nearest first. Useful even when no
   // question matches: "you wrote about Proton, which is the closest thing here"
@@ -141,6 +168,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string }> }
     .map(([company, score]) => ({ company, similarity: Number(score.toFixed(3)) }));
 
   return NextResponse.json({
+    salary,
     role,
     neighbours,
     highlights,

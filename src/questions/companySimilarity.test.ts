@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { companySection, rankBySimilarity } from './companySimilarity.js';
+import { companySection, rankBySimilarity } from './postingAnalysis.js';
 
 const PROTON = 'Proton builds end-to-end encrypted email, VPN and cloud storage. We are open source, ' +
   'Swiss-based, funded by our users rather than advertisers, and we believe privacy is a fundamental right.';

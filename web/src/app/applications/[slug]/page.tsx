@@ -24,6 +24,12 @@ interface Question {
 interface Evidence { id: string; content: string; date: string; track: string }
 interface Highlight { sentence: string; matched: string[] }
 interface Neighbour { company: string; similarity: number }
+interface SalaryComparator {
+  title: string; company: string; location: string; salary: string; similarity: number;
+}
+interface SalaryRef {
+  n: number; p25?: number; median?: number; p75?: number; comparators: SalaryComparator[];
+}
 interface Role {
   title?: string; location?: string; url?: string; blurb?: string;
   salary?: string; remote?: string; onsiteDays?: string;
@@ -37,6 +43,7 @@ export default function ApplicationPage() {
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [neighbours, setNeighbours] = useState<Neighbour[]>([]);
   const [role, setRole] = useState<Role | null>(null);
+  const [salary, setSalary] = useState<SalaryRef | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [evidenceFilter, setEvidenceFilter] = useState('');
@@ -52,6 +59,7 @@ export default function ApplicationPage() {
     setHighlights(data.highlights ?? []);
     setNeighbours(data.neighbours ?? []);
     setRole(data.role ?? null);
+    setSalary(data.salary ?? null);
     setDrafts(Object.fromEntries((data.questions ?? []).map((q: Question) => [q.id, q.answer ?? ''])));
     setLoading(false);
   }, [slug]);
@@ -182,6 +190,30 @@ export default function ApplicationPage() {
                     className="mt-1 text-xs underline">reuse</button>
                 </div>
               ))}
+
+              {/* What comparable roles pay, on the question that needs it.
+                  Compared against roles like this one, not everything in the
+                  country - the count is shown because the pool is small, and a
+                  thin sample should look thin. */}
+              {salary && /salary|compensation/i.test(q.question) && (
+                <div className="mt-2 rounded border border-[var(--border)] bg-[var(--cream-dark)] p-3 text-sm">
+                  <div className="font-medium">
+                    Comparable roles: €{Math.round((salary.p25 ?? 0) / 1000)}k – €
+                    {Math.round((salary.p75 ?? 0) / 1000)}k
+                    <span className="ml-2 font-normal text-[var(--ink-muted)]">
+                      median €{Math.round((salary.median ?? 0) / 1000)}k, from {salary.n}
+                    </span>
+                  </div>
+                  <ul className="mt-2 space-y-1 text-xs text-[var(--ink-muted)]">
+                    {salary.comparators.slice(0, 5).map((c, i) => (
+                      <li key={i}>
+                        {c.salary} · {c.title.slice(0, 44)} @ {c.company.slice(0, 18)}
+                        {c.location ? ` · ${c.location.slice(0, 24)}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* A Yes/No field answered by typing prose is silly. Where the
                   form offered choices, offer the same choices - and still allow

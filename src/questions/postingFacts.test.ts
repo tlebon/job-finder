@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { postingFacts } from './postingFacts.js';
+import { postingFacts } from './postingAnalysis.js';
 
 // Both from real postings Tim pasted.
 test('a stated salary range is pulled out', () => {
