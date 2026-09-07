@@ -25,7 +25,8 @@ interface Evidence { id: string; content: string; date: string; track: string }
 interface Highlight { sentence: string; matched: string[] }
 interface Neighbour { company: string; similarity: number }
 interface SalaryComparator {
-  title: string; company: string; location: string; salary: string; similarity: number;
+  title: string; company: string; location: string; salary: string;
+  low: number; high: number; similarity: number;
 }
 interface SalaryRef {
   n: number; p25?: number; median?: number; p75?: number; comparators: SalaryComparator[];
@@ -207,11 +208,24 @@ export default function ApplicationPage() {
                   <ul className="mt-2 space-y-1 text-xs text-[var(--ink-muted)]">
                     {salary.comparators.slice(0, 5).map((c, i) => (
                       <li key={i}>
-                        {c.salary} · {c.title.slice(0, 44)} @ {c.company.slice(0, 18)}
-                        {c.location ? ` · ${c.location.slice(0, 24)}` : ''}
+                        {/* The EUR figure first so the list is comparable with
+                            the summary above it, and what the posting actually
+                            said beside it - the quartiles are computed in EUR
+                            while the list was showing raw pounds and dollars,
+                            which made the two look unrelated. */}
+                        <span className="text-[var(--ink)]">
+                          €{Math.round(c.low / 1000)}k–{Math.round(c.high / 1000)}k
+                        </span>
+                        {!c.salary.includes('€') && <span> ({c.salary})</span>}
+                        {' · '}{c.title.slice(0, 40)} @ {c.company.slice(0, 16)}
+                        {c.location ? ` · ${c.location.slice(0, 22)}` : ''}
                       </li>
                     ))}
                   </ul>
+                  <p className="mt-2 text-xs text-[var(--ink-muted)]">
+                    Converted to EUR at indicative rates. Ranked by how much the role
+                    resembles this one, not by location alone.
+                  </p>
                 </div>
               )}
 
