@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { slugifyCompany } from '@/lib/companies';
 
 /**
  * Questions grouped by the application they belong to.
@@ -12,8 +13,6 @@ import { db } from '@/lib/db';
  * distinguish the handful of applications open at once.
  */
 
-const slugify = (s: string) =>
-  (s || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 interface Row {
   company: string | null; job_id: string | null; ats: string | null;
@@ -34,7 +33,7 @@ export async function GET() {
 
   return NextResponse.json({
     applications: rows.map(r => ({
-      slug: slugify(r.company ?? 'unknown'),
+      slug: slugifyCompany(r.company ?? 'unknown'),
       company: r.company ?? 'Unfiled',
       jobId: r.job_id ?? undefined,
       ats: r.ats ?? undefined,

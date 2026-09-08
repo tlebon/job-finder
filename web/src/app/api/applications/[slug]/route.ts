@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { slugifyCompany } from '@/lib/companies';
 import { companySection, postingFacts, rankBySimilarity, salaryReference } from '@shared/questions/postingAnalysis';
 import { learnPreferences, highlight } from '@shared/questions/preferredTerms';
 
-const slugify = (s: string) =>
-  (s || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 interface Row {
   id: string; question_text: string; kind: string; company: string | null;
@@ -31,7 +30,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string }> }
     ORDER BY (answer IS NULL OR answer = '') DESC, created_at
   `).all() as Row[];
 
-  const mine = all.filter(r => slugify(r.company ?? 'unknown') === slug);
+  const mine = all.filter(r => slugifyCompany(r.company ?? 'unknown') === slug);
   if (!mine.length) return NextResponse.json({ error: 'no such application' }, { status: 404 });
 
   const strip = (t: string, c?: string | null) => {
@@ -75,7 +74,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ slug: string }> }
       AND COALESCE(j.description, k.description) IS NOT NULL
   `).all() as { company: string; description: string; title: string; location: string; url: string }[];
 
-  const here = blurbs.find(b => slugify(b.company) === slug);
+  const here = blurbs.find(b => slugifyCompany(b.company) === slug);
   const nearness = new Map<string, number>();
   if (here) {
     for (const { id, score } of rankBySimilarity(

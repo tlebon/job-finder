@@ -40,6 +40,26 @@ export default function CompanyPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  /**
+   * Applications are sent on the company's own site, so nothing tells this app
+   * about them. Production has zero APPLIED rows and eight Proton postings
+   * still marked pending, one of which Tim has already applied to - the badge
+   * on the candidates list can only work if recording it is a single click
+   * from the page that shows the other roles.
+   *
+   * One-way here on purpose: reverting would have to guess the status the job
+   * had before, and defaulting to PENDING would silently discard a shortlist.
+   * Undo lives on the job page, which has the full status control.
+   */
+  const markApplied = useCallback(async (id: string) => {
+    await fetch(`/api/jobs/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'APPLIED' }),
+    });
+    await load();
+  }, [load]);
+
   if (loading) return <main className="p-8 text-[var(--ink-muted)]">Loading…</main>;
   if (!jobs.length && !applied.length) return <main className="p-8">Nothing open here.</main>;
 
@@ -68,10 +88,24 @@ export default function CompanyPage() {
               <span className="shrink-0 text-xs text-[var(--ink-muted)]">
                 {j.suggestion === 'STRONG_FIT' ? 'strong' : j.suggestion === 'GOOD_FIT' ? 'good' : ''}
                 {j.reach ? ` · ${j.reach}` : ''}
-                {j.status === 'APPLIED' ? ' · applied' : j.status === 'APPROVED' ? ' · shortlisted' : ''}
+                {j.status === 'APPROVED' ? ' · shortlisted' : ''}
               </span>
             </div>
-            <p className="mt-0.5 text-sm text-[var(--ink-muted)]">{j.location}</p>
+            <p className="mt-0.5 flex items-center gap-3 text-sm text-[var(--ink-muted)]">
+              <span>{j.location}</span>
+              {j.status === 'APPLIED' ? (
+                <span className="rounded-full border border-[var(--success)]/30 bg-[var(--success-light)] px-2 py-0.5 text-xs text-[var(--success)]">
+                  applied
+                </span>
+              ) : (
+                <button
+                  onClick={() => void markApplied(j.id)}
+                  className="rounded-full border border-[var(--border)] px-2 py-0.5 text-xs text-[var(--ink-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  mark applied
+                </button>
+              )}
+            </p>
           </li>
         ))}
       </ul>
