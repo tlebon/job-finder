@@ -7,19 +7,21 @@ WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm ci
 
-# The web app imports the application-form parser from the scraper's src via the
-# @shared alias, so that stage needs it too. Without this the build fails in
-# eighteen seconds with an unresolved module - and it builds fine locally, where
-# src/ is simply present, so nothing catches it before the deploy.
-# Only src/questions, not all of src. The web tsconfig type-checks whatever it
-# includes, and the rest of src imports @anthropic-ai/sdk and better-sqlite3,
-# which are not web dependencies. Anything shared with the web app therefore has
-# to be self-contained - the parser is, deliberately.
-COPY src/questions/ /app/src/questions/
-# Same deal for the labelling-epoch registry, which /api/label reads to report
-# per-batch progress. Self-contained by construction: batches.ts imports only
-# its own JSON, so it carries no scraper-only dependency into the web build.
-COPY src/labels/ /app/src/labels/
+# The web app imports from the scraper's src through the @shared alias, so this
+# stage needs it. Without it the build fails on an unresolved module, and it
+# builds fine locally where src/ is simply present, so nothing catches it first.
+#
+# All of src, not a list of subdirectories. This used to copy only
+# src/questions/ on the theory that the rest would drag @anthropic-ai/sdk and
+# better-sqlite3 into a build that lacks them. That was asserted in the same
+# commit that added the line and never tested; building this stage with all of
+# src present succeeds. Nothing here is type-checked or bundled unless the web
+# app imports it, and web/tsconfig.json opts directories into type-checking
+# explicitly rather than sweeping up ../src.
+#
+# The list was a live trap: sharing a new directory meant remembering to add it
+# here, and forgetting cost a silent 49-minute deploy failure once already.
+COPY src/ /app/src/
 
 # Copy web source and build
 COPY web/ ./
