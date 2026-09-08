@@ -16,6 +16,10 @@ RUN npm ci
 # which are not web dependencies. Anything shared with the web app therefore has
 # to be self-contained - the parser is, deliberately.
 COPY src/questions/ /app/src/questions/
+# Same deal for the labelling-epoch registry, which /api/label reads to report
+# per-batch progress. Self-contained by construction: batches.ts imports only
+# its own JSON, so it carries no scraper-only dependency into the web build.
+COPY src/labels/ /app/src/labels/
 
 # Copy web source and build
 COPY web/ ./

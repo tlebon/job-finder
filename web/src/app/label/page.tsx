@@ -20,6 +20,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { LabelBatches, type BatchProgress } from '@/components/LabelBatches';
 
 interface Item {
   id: string;
@@ -32,6 +33,8 @@ interface Item {
 export default function LabelPage() {
   const [queue, setQueue] = useState<Item[]>([]);
   const [progress, setProgress] = useState({ total: 0, labelled: 0 });
+  const [batches, setBatches] = useState<BatchProgress[]>([]);
+  const [currentBatch, setCurrentBatch] = useState<string | null>(null);
   const [shortlisted, setShortlisted] = useState(0);
   const [history, setHistory] = useState<{ item: Item; label: number | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +45,8 @@ export default function LabelPage() {
     const data = await res.json();
     setQueue(data.items);
     setProgress(data.progress);
+    setBatches(data.batches ?? []);
+    setCurrentBatch(data.currentBatch ?? null);
     setLoading(false);
   }, []);
 
@@ -124,6 +129,7 @@ export default function LabelPage() {
         <div className="mt-2 h-1 w-full overflow-hidden rounded bg-[var(--border)]">
           <div className="h-full bg-[var(--accent)] transition-all" style={{ width: `${pct}%` }} />
         </div>
+        <LabelBatches batches={batches} currentId={currentBatch} />
       </header>
 
       <article className="flex-1 overflow-auto rounded-lg border border-[var(--border)] bg-[var(--cream)] p-4 sm:p-6">

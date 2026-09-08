@@ -14,6 +14,7 @@
  */
 
 import { config } from 'dotenv';
+import { BATCHES, batchOf } from './labels/batches.js';
 import { db } from './storage/db.js';
 import { filterJob } from './filters/jobFilter.js';
 import type { RawJob } from './types.js';
@@ -27,11 +28,15 @@ interface Row {
   sampling_prob: number; human_label: number;
 }
 
-const rows = db.prepare(`
+// Which batches may be scored on is defined once, in src/labels/batches.json.
+const eligible = BATCHES.filter(b => b.evalEligible).map(b => b.id);
+
+const rows = (db.prepare(`
   SELECT title, company, location, url, description, source,
-         gate_passed, regex_score, sampling_prob, human_label
-  FROM label_sample WHERE human_label IS NOT NULL AND stratum <> 'triage'
-`).all() as Row[];
+         gate_passed, regex_score, sampling_prob, stratum, human_label
+  FROM label_sample WHERE human_label IS NOT NULL
+`).all() as (Row & { stratum: string })[])
+  .filter(r => eligible.includes(batchOf(r.stratum).id));
 
 if (rows.length < 30) {
   console.log(`Only ${rows.length} labelled so far - too few to read anything into. Label more at /label`);

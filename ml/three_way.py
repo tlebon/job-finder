@@ -21,6 +21,7 @@ import json
 import sys
 from pathlib import Path
 
+from batches import eval_eligible
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
@@ -44,9 +45,10 @@ def key(r: dict) -> str:
 
 
 def main(train_path: str, labels_path: str) -> None:
+    # src/labels/batches.json decides which epochs are scoreable.
     labels = [r for r in read(labels_path)
               if r.get("human_label") is not None and r.get("text")
-              and r.get("stratum") != "triage"]
+              and eval_eligible(r.get("stratum", ""))]
     print(f"{len(labels)} rows Tim labelled")
 
     held = {key(r) for r in labels}

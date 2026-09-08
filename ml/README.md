@@ -20,6 +20,32 @@ railway ssh ... "cd /app && npx tsx src/export-training-data.ts" > data/train.js
 ml/.venv/bin/python ml/train_baseline.py data/train.jsonl
 ```
 
+## The labelling epochs
+
+`label_sample` is three batches drawn under three different rules, and the only
+thing that ever distinguished them was the shape of the `stratum` string. They
+are now named in `src/labels/batches.json`, which `src/labels/batches.ts` and
+`ml/batches.py` both read, so `holdout.py`, `three_way.py`,
+`eval-gate-vs-human.ts` and the labelling UI cannot disagree about which rows
+may be scored on.
+
+| batch | n | labelled | base rate | selection | use |
+|---|---|---|---|---|---|
+| source-stratified | 280 | 280 | 0.221 | probability | dev set, contaminated |
+| rejects-holdout | 200 | 200 | 0.140 | probability | the one clean measurement |
+| triage-active | 300 | 9 | 0.778 | ranked, best first | training only |
+
+The base rates are the reason this needed writing down. Triage runs 4x the
+others because it is the top of the model's own ranking, and it decays as the
+queue descends. `/label` withholds each row's score, verdict and source, but
+that only makes it blind per item - a labeller working a queue where nearly
+everything is a yes has still been told something. Calling that batch "blind"
+was wrong; it is `blind: "partial"` in the registry, and the UI now names the
+batch it is serving rather than leaving the skew unlabelled.
+
+Adding a batch means adding an entry, not editing four call sites. First match
+wins, so the default entry stays last.
+
 ## Tim's own decisions
 
 A third stream, separate from both the corpus and the labelling set:

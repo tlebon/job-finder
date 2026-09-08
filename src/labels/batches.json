@@ -1,0 +1,44 @@
+{
+  "note": "The epochs of data/labels.jsonl. Read by src/labels/batches.ts and ml/batches.py so the eval scripts and the UI cannot disagree about which rows may be scored on. First match wins.",
+  "batches": [
+    {
+      "id": "triage-active",
+      "name": "Triage of the live list",
+      "match": { "equals": "triage" },
+      "drawn": "2026-09-05",
+      "command": "npx tsx src/build-label-sample.ts --from=active --confirm --target=300",
+      "population": "Live PENDING candidates that passed the gate",
+      "selection": "ranked",
+      "evalEligible": false,
+      "blind": "partial",
+      "why": "The UI hides each row's score, verdict and source, but the batch is the top of the model's own ranking, ordered best-first. Observed base rate 0.778 against 0.221 and 0.140 for the other two epochs - a labeller notices that within a few rows, and the rate decays as he descends the order. Blind per item, not blind as a set.",
+      "use": "Training only. Every yes is also a job worth applying to, which is the point: scrolling a page of 800 is not a decision procedure."
+    },
+    {
+      "id": "rejects-holdout",
+      "name": "Stored rejects",
+      "match": { "prefix": "reject|" },
+      "drawn": "2026-09-04",
+      "command": "npx tsx src/build-label-sample.ts --from=rejects --confirm --target=200",
+      "population": "rejected_jobs, which the first batch could not reach because rejects were not stored yet",
+      "selection": "probability",
+      "evalEligible": true,
+      "blind": "yes",
+      "why": "Drawn after the development set was already spent, labelled without any of these being seen, and never used for tuning. The only unbiased measurement in the project.",
+      "use": "Evaluation. Touched once - see ml/holdout.py. Tuning anything in response spends the one clean number available."
+    },
+    {
+      "id": "source-stratified",
+      "name": "Stratified by source and gate outcome",
+      "match": { "default": true },
+      "drawn": "2026-09-04",
+      "command": "npx tsx src/build-label-sample.ts --confirm --target=300 --floor=8",
+      "population": "The whole corpus, stratified by source crossed with gate pass/reject",
+      "selection": "probability",
+      "evalEligible": true,
+      "blind": "yes",
+      "why": "A real probability sample: sampling_prob and stratum_size are stored, so estimates can be reweighted to the population, and it includes rows the gate rejected, which is what makes recall computable at all.",
+      "use": "Development set, and contaminated. Roughly a dozen experiments were run against it - feature sets, thresholds, ordinal versus binary, four classifier families - each choice made while looking at these labels. Cross-validation does not undo that. Fine for training and for cross-validated comparison, not for a number you quote."
+    }
+  ]
+}

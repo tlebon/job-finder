@@ -23,6 +23,7 @@ import json
 import sys
 from pathlib import Path
 
+from batches import batch_of, eval_eligible
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
@@ -52,14 +53,16 @@ def frame(rows: list[dict]) -> pd.DataFrame:
 
 
 def main() -> None:
+    # Which batches may be scored on, and which of them is the holdout, are
+    # both defined in src/labels/batches.json rather than spelled out here.
+    # Triage rows are the live candidate list ranked best-first, not a random
+    # draw, and putting a deliberately skewed sample into an evaluation that
+    # assumes one is the failure this registry exists to prevent.
     labels = [r for r in read("data/labels.jsonl")
               if r.get("human_label") is not None and r.get("text")
-              # Triage rows are the live candidate list ranked best-first, not a
-              # random draw. Including them would put a deliberately skewed
-              # sample into an evaluation that assumes one.
-              and r.get("stratum") != "triage"]
-    held = [r for r in labels if str(r.get("stratum", "")).startswith("reject|")]
-    dev = [r for r in labels if not str(r.get("stratum", "")).startswith("reject|")]
+              and eval_eligible(r.get("stratum", ""))]
+    held = [r for r in labels if batch_of(r.get("stratum", ""))["id"] == "rejects-holdout"]
+    dev = [r for r in labels if batch_of(r.get("stratum", ""))["id"] != "rejects-holdout"]
 
     y = np.array([int(r["human_label"]) for r in held])
     w = np.array([1.0 / r["sampling_prob"] for r in held])
