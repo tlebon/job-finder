@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { CategoryFilter, CATEGORY_LABELS, categoryChipClass } from '@/components/CategoryFilter';
 import { ReachFilter, REACH_LABELS, reachChipClass, type Reach } from '@/components/ReachFilter';
+import { LocationFilter, placeOf, type Place } from '@/components/LocationFilter';
 import Link from 'next/link';
 
 type AISuggestion = 'STRONG_FIT' | 'GOOD_FIT' | 'MAYBE' | 'AUTO_DISMISS';
@@ -52,6 +53,7 @@ export default function CandidatesPage() {
   const [sortBy, setSortBy] = useState<SortOption>('ai');
   const [activeCategories, setActiveCategories] = useState<Set<string>>(new Set());
   const [activeReach, setActiveReach] = useState<Set<Reach>>(new Set());
+  const [activePlaces, setActivePlaces] = useState<Set<Place>>(new Set());
   const [hideRelocation, setHideRelocation] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [reviewProgress, setReviewProgress] = useState<{ total: number; completed: number; currentJob: string }>({ total: 0, completed: 0, currentJob: '' });
@@ -178,6 +180,15 @@ export default function CandidatesPage() {
     return counts;
   }, [jobs]);
 
+  const placeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const job of jobs) {
+      const p = placeOf(job.location);
+      counts[p] = (counts[p] ?? 0) + 1;
+    }
+    return counts;
+  }, [jobs]);
+
   const relocationCount = useMemo(
     () => jobs.filter(j => j.requiresRelocation).length,
     [jobs]
@@ -191,9 +202,18 @@ export default function CandidatesPage() {
     // that axis yet, and dropping it would quietly hide everything reviewed
     // before the two-axis prompt existed.
     if (activeReach.size > 0 && job.aiReach && !activeReach.has(job.aiReach)) return false;
+    if (activePlaces.size > 0 && !activePlaces.has(placeOf(job.location))) return false;
     if (activeCategories.size === 0) return true;
     return (job.categories || []).some(c => activeCategories.has(c));
-  }), [jobs, activeCategories, activeReach, hideRelocation]);
+  }), [jobs, activeCategories, activeReach, activePlaces, hideRelocation]);
+
+  const togglePlace = (place: Place) => {
+    setActivePlaces(prev => {
+      const next = new Set(prev);
+      if (next.has(place)) next.delete(place); else next.add(place);
+      return next;
+    });
+  };
 
   const toggleReach = (reach: Reach) => {
     setActiveReach(prev => {
@@ -501,6 +521,11 @@ export default function CandidatesPage() {
           </div>
         ) : (
           <>
+            <LocationFilter
+              active={activePlaces}
+              counts={placeCounts}
+              onToggle={togglePlace}
+            />
             <ReachFilter
               active={activeReach}
               counts={reachCounts}

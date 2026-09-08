@@ -86,9 +86,15 @@ export default function Home() {
 
   const filteredJobs = jobs.filter(job => {
     // "All" excludes NOT_FIT and PENDING (PENDING jobs go to candidates page)
-    if (filter === 'all') return job.status !== 'NOT_FIT' && job.status !== 'PENDING';
+    // All means all. It used to exclude PENDING as well, which is almost the
+    // entire corpus - 1,425 of them - so "All" showed a nearly empty page and
+    // looked broken. That made sense when this was purely an application
+    // tracker and PENDING meant "not yet triaged"; it does not now.
+    if (filter === 'all') return job.status !== 'NOT_FIT';
     if (filter === 'pending') return job.status === 'PENDING';
     if (filter === 'new') return job.status === 'NEW';
+    // Triage on /label moves a yes to APPROVED, so the shortlist needs a home.
+    if (filter === 'approved') return job.status === 'APPROVED';
     if (filter === 'applied') return job.status === 'APPLIED';
     if (filter === 'interview') return job.status === 'INTERVIEW';
     if (filter === 'not-fit') return job.status === 'NOT_FIT';
@@ -96,10 +102,14 @@ export default function Home() {
   });
 
   // Metrics
-  const activeJobs = jobs.filter(j => j.status !== 'NOT_FIT' && j.status !== 'PENDING');
+  // Matches the All filter, so the tab count and the list agree. They had
+  // drifted apart: the count excluded PENDING and so did the filter, which is
+  // why All read as a plausible number over an empty page.
+  const activeJobs = jobs.filter(j => j.status !== 'NOT_FIT');
   const metrics = {
     active: activeJobs.length,
     pending: jobs.filter(j => j.status === 'PENDING').length,
+    approved: jobs.filter(j => j.status === 'APPROVED').length,
     new: jobs.filter(j => j.status === 'NEW').length,
     applied: jobs.filter(j => j.status === 'APPLIED').length,
     interview: jobs.filter(j => j.status === 'INTERVIEW').length,
@@ -111,6 +121,9 @@ export default function Home() {
     { key: 'all', label: 'All', count: metrics.active },
     { key: 'pending', label: 'Pending', count: metrics.pending },
     { key: 'new', label: 'Ready', count: metrics.new },
+    // Where a triage yes on /label lands. Without a tab for it the shortlist
+    // was invisible from here.
+    { key: 'approved', label: 'Shortlist', count: metrics.approved },
     { key: 'applied', label: 'Applied', count: metrics.applied },
     { key: 'interview', label: 'Interview', count: metrics.interview },
     { key: 'not-fit', label: 'Not Fit', count: metrics.notFit },
