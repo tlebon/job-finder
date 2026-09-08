@@ -239,19 +239,50 @@ export default function CandidatesPage() {
     setHideRelocation(false);
   };
 
+  /**
+   * What an absent model score is worth.
+   *
+   * 440 of the 1,425 pending jobs predate the column, and ranking them last
+   * would repeat exactly the bug the verdict ordering above had to fix: a job
+   * nothing has judged is unknown, not bad. The median of what is scored puts
+   * them in the middle of their band instead.
+   */
+  const medianModelScore = useMemo(() => {
+    const scores = jobs
+      .map(j => j.modelScore)
+      .filter((s): s is number => typeof s === 'number')
+      .sort((x, y) => x - y);
+    return scores.length ? scores[Math.floor(scores.length / 2)] : 0;
+  }, [jobs]);
+
   const sortedJobs = [...visibleJobs].sort((a, b) => {
     switch (sortBy) {
-      case 'ai':
+      case 'ai': {
         // Sort by AI suggestion first (Strong > Good > Maybe > Auto-dismiss > Not reviewed)
-        // Then by score within each category
+        // Then by the trained model within each category.
         // Unreviewed sorts as neutral, not as worse than a rejection. Sending
         // it to 99 buried every job from a source whose review had not run yet:
         // all 295 ATS and 80,000 Hours jobs ranked below AUTO_DISMISS, putting
         // the highest-scoring job in the database at rank 1589.
+        //
+        // The tie-break used to be the regex score, which is the weakest of the
+        // three signals available. On Tim's 480 labels (src/eval-rankers.ts):
+        //
+        //   regex alone                    AUC 0.676
+        //   reviewer verdict alone         AUC 0.689
+        //   verdict, regex tie-break       AUC 0.717   top-50 34.4%  top-100 44.4%
+        //   verdict, model tie-break       AUC 0.744   top-50 35.6%  top-100 48.9%
+        //   model alone                    AUC 0.782   top-50 27.8%  top-100 51.1%
+        //
+        // The model is the better ranker overall but worse at the very top,
+        // where he actually looks - so the reviewer keeps the coarse call and
+        // the model only breaks ties inside it. That beats the old sort on all
+        // three numbers rather than trading one against another.
         const aOrder = a.aiSuggestion ? AI_SUGGESTION_ORDER[a.aiSuggestion] : UNREVIEWED_ORDER;
         const bOrder = b.aiSuggestion ? AI_SUGGESTION_ORDER[b.aiSuggestion] : UNREVIEWED_ORDER;
         if (aOrder !== bOrder) return aOrder - bOrder;
-        return b.score - a.score;
+        return (b.modelScore ?? medianModelScore) - (a.modelScore ?? medianModelScore);
+      }
       case 'score':
         return b.score - a.score;
       case 'date':
