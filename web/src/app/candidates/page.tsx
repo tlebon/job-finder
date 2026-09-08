@@ -5,6 +5,8 @@ import { CategoryFilter, CATEGORY_LABELS, categoryChipClass } from '@/components
 import { ReachFilter, REACH_LABELS, reachChipClass, type Reach } from '@/components/ReachFilter';
 import { LocationFilter, placeOf, type Place } from '@/components/LocationFilter';
 import Link from 'next/link';
+import { AppliedHereBadge } from '@/components/AppliedHereBadge';
+import { useAppliedCompanies } from '@/lib/useAppliedCompanies';
 
 type AISuggestion = 'STRONG_FIT' | 'GOOD_FIT' | 'MAYBE' | 'AUTO_DISMISS';
 
@@ -58,6 +60,7 @@ export default function CandidatesPage() {
   const [reviewing, setReviewing] = useState(false);
   const [reviewProgress, setReviewProgress] = useState<{ total: number; completed: number; currentJob: string }>({ total: 0, completed: 0, currentJob: '' });
   const [reviewSummary, setReviewSummary] = useState<{ strongFit: number; goodFit: number; maybe: number; autoDismiss: number } | null>(null);
+  const appliedCompanies = useAppliedCompanies();
 
   const fetchCandidates = useCallback(() => {
     setLoading(true);
@@ -438,15 +441,12 @@ export default function CandidatesPage() {
           <div className="flex justify-between items-center">
             <div>
               <div className="flex items-center gap-3">
-                <Link href="/" className="text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </Link>
                 <h1 className="text-2xl font-serif font-medium text-[var(--ink)]">Review Candidates</h1>
               </div>
-              <p className="text-sm text-[var(--ink-muted)] ml-8">
+              <p className="text-sm text-[var(--ink-muted)]">
                 {jobs.length} pending • {selected.size} selected
+                <Link href="/tracker" className="ml-3 text-[var(--accent)] hover:underline">Tracker</Link>
+                <Link href="/companies" className="ml-3 text-[var(--accent)] hover:underline">Companies</Link>
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -515,8 +515,8 @@ export default function CandidatesPage() {
             <p className="text-sm text-[var(--ink-muted)]">
               Run the scraper to find new job opportunities
             </p>
-            <Link href="/" className="inline-block mt-4 text-[var(--accent)] hover:underline">
-              Go to Dashboard
+            <Link href="/tracker" className="inline-block mt-4 text-[var(--accent)] hover:underline">
+              Go to Tracker
             </Link>
           </div>
         ) : (
@@ -594,6 +594,7 @@ export default function CandidatesPage() {
                   onToggle={() => toggleSelect(job.id)}
                   onExpand={() => toggleExpand(job.id)}
                   onDismiss={() => handleDismiss(job.id)}
+                  appliedCompanies={appliedCompanies}
                 />
               ))}
             </div>
@@ -670,6 +671,7 @@ function CandidateCard({
   onToggle,
   onExpand,
   onDismiss,
+  appliedCompanies,
 }: {
   job: Job;
   selected: boolean;
@@ -677,6 +679,7 @@ function CandidateCard({
   onToggle: () => void;
   onExpand: () => void;
   onDismiss: () => void;
+  appliedCompanies: Set<string>;
 }) {
   const [showDismissConfirm, setShowDismissConfirm] = useState(false);
   const [translating, setTranslating] = useState(false);
@@ -799,6 +802,7 @@ function CandidateCard({
                 </div>
                 <p className="text-sm text-[var(--ink-muted)] mt-0.5 flex items-center gap-2 flex-wrap">
                   <span className="font-medium text-[var(--ink-light)]">{job.company}</span>
+                  <AppliedHereBadge company={job.company} applied={appliedCompanies} />
                   <span className="text-[var(--border)]">•</span>
                   <span className="truncate">{job.location}</span>
                 </p>
