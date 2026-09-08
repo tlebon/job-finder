@@ -1,10 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { slugifyCompany } from './companies';
 
-/** Slugs of companies with at least one application already sent. */
-export function useAppliedCompanies(): Set<string> {
+/**
+ * Slugs of companies with at least one application already sent.
+ *
+ * `noteApplied` records one locally so the other roles at that company are
+ * marked immediately, without a second round trip. The server is the authority;
+ * this only closes the gap until the next load.
+ */
+export function useAppliedCompanies(): {
+  applied: Set<string>;
+  noteApplied: (company: string) => void;
+} {
   const [applied, setApplied] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -26,7 +35,11 @@ export function useAppliedCompanies(): Set<string> {
     return () => { live = false; };
   }, []);
 
-  return applied;
+  const noteApplied = useCallback((company: string) => {
+    setApplied(prev => new Set(prev).add(slugifyCompany(company)));
+  }, []);
+
+  return { applied, noteApplied };
 }
 
 export { slugifyCompany };

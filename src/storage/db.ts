@@ -336,8 +336,20 @@ export function updateJobCategories(jobId: string, categories: string[]): void {
 export type StatusSource = 'user' | 'ai' | 'system';
 
 export function updateJobStatus(jobId: string, status: string, source: StatusSource = 'user'): void {
-  db.prepare('UPDATE jobs SET status = ?, status_source = ?, status_changed_at = ? WHERE id = ?')
-    .run(status, source, new Date().toISOString(), jobId);
+  const now = new Date().toISOString();
+  // status_changed_at cannot carry the date the application went out: a later
+  // INTERVIEW or REJECTED overwrites it. applied_date is written once, on the
+  // first status that implies an application was sent, and never overwritten -
+  // the decision stream needs to know when he committed, not when the company
+  // last replied.
+  const sentApplication = status === 'APPLIED' || status === 'INTERVIEW';
+  db.prepare(`
+    UPDATE jobs
+       SET status = ?, status_source = ?, status_changed_at = ?,
+           applied_date = CASE WHEN ? = 1 AND applied_date IS NULL THEN ? ELSE applied_date END
+     WHERE id = ?
+  `)
+    .run(status, source, now, sentApplication ? 1 : 0, now, jobId);
 }
 
 export function getJobById(jobId: string): Job | null {

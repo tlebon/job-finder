@@ -409,8 +409,20 @@ export function updateJobStatus(id: string, status: string, source: StatusSource
   // 'user' by default: this path is reached from the UI, so it is Tim deciding.
   // That makes these rows the only ground-truth labels the project has - see the
   // note on StatusSource in src/storage/db.ts.
-  const result = db.prepare('UPDATE jobs SET status = ?, status_source = ?, status_changed_at = ? WHERE id = ?')
-    .run(status, source, new Date().toISOString(), id);
+  const now = new Date().toISOString();
+  // status_changed_at cannot carry the date the application went out: a later
+  // INTERVIEW or REJECTED overwrites it. applied_date is written once, on the
+  // first status that implies an application was sent, and never overwritten -
+  // the decision stream needs to know when he committed, not when the company
+  // last replied.
+  const sentApplication = status === 'APPLIED' || status === 'INTERVIEW';
+  const result = db.prepare(`
+    UPDATE jobs
+       SET status = ?, status_source = ?, status_changed_at = ?,
+           applied_date = CASE WHEN ? = 1 AND applied_date IS NULL THEN ? ELSE applied_date END
+     WHERE id = ?
+  `)
+    .run(status, source, now, sentApplication ? 1 : 0, now, id);
   return result.changes > 0;
 }
 

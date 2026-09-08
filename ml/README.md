@@ -20,6 +20,50 @@ railway ssh ... "cd /app && npx tsx src/export-training-data.ts" > data/train.js
 ml/.venv/bin/python ml/train_baseline.py data/train.jsonl
 ```
 
+## Tim's own decisions
+
+A third stream, separate from both the corpus and the labelling set:
+
+```
+curl -H "Authorization: Bearer $EXPORT_TOKEN" \
+  'https://job-finder-production-6560.up.railway.app/api/export/training?set=decisions' \
+  > data/decisions.jsonl
+```
+
+Every row is a status Tim set himself in the UI (`status_source = 'user'`).
+An application costs him an hour, so it is revealed preference rather than an
+opinion about relevance - stronger evidence than a label saying "this looks
+good".
+
+`decision` is 1 for APPLIED, INTERVIEW, REJECTED and APPROVED, 0 for NOT_FIT.
+REJECTED and INTERVIEW are positives because both mean he applied; only the
+company changed its mind afterwards, which says nothing about what he wanted.
+`applied` separates the four he committed to from a shortlist he did not, so
+the two can be weighted differently rather than having the distinction
+flattened at export time. `applied_date` is written once, on the first status
+implying an application went out, and never overwritten.
+
+**These train. They never evaluate.** He made every one of them while looking
+at the score, the reviewer's verdict and the badges, so they are not blind; and
+they are not a probability sample of anything, being the top of what the gate
+already surfaced. Scoring a model on them would measure how well it agrees with
+the pipeline that chose what he saw. Every row carries `blind: false` and
+`eval_eligible: false`; `holdout.py` keeps reading `data/labels.jsonl`.
+
+Unlike the corpus export, this one applies no `ai_suggestion` or description
+length filter. A job he applied to that the reviewer never saw is exactly the
+row worth keeping.
+
+**As of 8 Sep 2026 the stream is empty.** `status_source` was added after the
+UI had already been in use, so no decision carries provenance yet: production
+has 0 rows with `status_source = 'user'`. Of the 2,268 NOT_FIT rows with no
+source, 2,246 are `AUTO_DISMISS` and so were the reviewer's, leaving 22 that
+were plausibly his - 15 of them reviewer/human disagreements (13 STRONG_FIT and
+2 MAYBE marked NOT_FIT), all lead, EM or full-stack roles at German non-AI
+companies. That is the shape of the ml/llm preference, and it is worth
+confirming by hand rather than inferring provenance and shipping the guess as
+data.
+
 ## Reading the numbers
 
 **The labels are noisy, but less damagingly than the raw flip rate suggests.**

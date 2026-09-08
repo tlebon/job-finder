@@ -60,7 +60,7 @@ export default function CandidatesPage() {
   const [reviewing, setReviewing] = useState(false);
   const [reviewProgress, setReviewProgress] = useState<{ total: number; completed: number; currentJob: string }>({ total: 0, completed: 0, currentJob: '' });
   const [reviewSummary, setReviewSummary] = useState<{ strongFit: number; goodFit: number; maybe: number; autoDismiss: number } | null>(null);
-  const appliedCompanies = useAppliedCompanies();
+  const { applied: appliedCompanies, noteApplied } = useAppliedCompanies();
 
   const fetchCandidates = useCallback(() => {
     setLoading(true);
@@ -363,6 +363,31 @@ export default function CandidatesPage() {
     }
   };
 
+  /**
+   * Applications happen on the company's own site, so the app only learns about
+   * one if recording it is easier than not bothering. This sits beside
+   * "Original Listing", which is the link he leaves through: open the posting,
+   * apply, come back, click Applied.
+   *
+   * It is also the strongest label the project collects - an application costs
+   * an hour, which makes it revealed preference rather than an opinion about
+   * relevance. updateJobStatus stamps status_source='user', and
+   * /api/export/training?set=decisions is where it reaches training.
+   */
+  const handleMarkApplied = async (id: string, company: string) => {
+    try {
+      await fetch(`/api/jobs/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'APPLIED' }),
+      });
+      noteApplied(company);
+      setJobs(prev => prev.filter(j => j.id !== id));
+    } catch (err) {
+      console.error('Failed to mark applied:', err);
+    }
+  };
+
   const handleDismissSelected = async () => {
     if (selected.size === 0) return;
 
@@ -594,6 +619,7 @@ export default function CandidatesPage() {
                   onToggle={() => toggleSelect(job.id)}
                   onExpand={() => toggleExpand(job.id)}
                   onDismiss={() => handleDismiss(job.id)}
+                  onApplied={() => handleMarkApplied(job.id, job.company)}
                   appliedCompanies={appliedCompanies}
                 />
               ))}
@@ -671,6 +697,7 @@ function CandidateCard({
   onToggle,
   onExpand,
   onDismiss,
+  onApplied,
   appliedCompanies,
 }: {
   job: Job;
@@ -679,6 +706,7 @@ function CandidateCard({
   onToggle: () => void;
   onExpand: () => void;
   onDismiss: () => void;
+  onApplied: () => void;
   appliedCompanies: Set<string>;
 }) {
   const [showDismissConfirm, setShowDismissConfirm] = useState(false);
@@ -859,6 +887,12 @@ function CandidateCard({
               >
                 Full Page
               </Link>
+              <button
+                onClick={(e) => { e.stopPropagation(); onApplied(); }}
+                className="text-sm text-[var(--ink-muted)] hover:text-[var(--success)] cursor-pointer"
+              >
+                Applied
+              </button>
               {showDismissConfirm ? (
                 <div className="flex items-center gap-2 ml-auto" onClick={(e) => e.stopPropagation()}>
                   <span className="text-xs text-[var(--ink-muted)]">Dismiss?</span>

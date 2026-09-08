@@ -63,6 +63,61 @@ export async function GET(request: Request) {
     });
   }
 
+  /**
+   * Tim's own decisions, as a stream of their own.
+   *
+   * These are the strongest labels the project has and the most dangerous to
+   * misuse. An application costs him an hour, so it is revealed preference
+   * rather than an opinion about relevance - stronger evidence than a label
+   * saying "this looks good". But he made every one of them while looking at
+   * the score, the reviewer's verdict and the badges, so they are not blind,
+   * and they are not a probability sample of anything: they are the top of what
+   * the gate already surfaced. Scoring a model on them would measure how well
+   * it agrees with the pipeline that chose what he saw.
+   *
+   * So they train and they never evaluate. `blind` and `eval_eligible` say so
+   * on every row, and holdout.py must keep reading data/labels.jsonl.
+   *
+   * REJECTED and INTERVIEW count as positives: both mean he applied. Only the
+   * company changed its mind afterwards, and that says nothing about what he
+   * wanted. APPROVED is a shortlist, which is weaker - `applied` separates them
+   * so the training script can weight them differently rather than having the
+   * distinction flattened here.
+   */
+  if (url.searchParams.get('set') === 'decisions') {
+    const decisions = db.prepare(`
+      SELECT id, title, company, location, source, description, url,
+             status, status_source, status_changed_at, applied_date,
+             ai_suggestion, model_score, score, ai_score_adjustment
+      FROM jobs
+      WHERE status_source = 'user'
+        AND status IN ('APPLIED', 'INTERVIEW', 'REJECTED', 'APPROVED', 'NOT_FIT')
+    `).all() as Record<string, unknown>[];
+
+    // No ai_suggestion or description-length filter here, unlike the corpus
+    // export below. A job he applied to that the reviewer never saw is exactly
+    // the row worth keeping, and dropping it for want of the reviewer's opinion
+    // would discard his decision to protect a column he did not use.
+    const APPLIED_STATUSES = new Set(['APPLIED', 'INTERVIEW', 'REJECTED']);
+
+    const body = decisions.map(r => {
+      const status = String(r.status);
+      return JSON.stringify({
+        ...r,
+        text: String(r.description ?? '').slice(0, maxChars),
+        description: undefined,
+        decision: status === 'NOT_FIT' ? 0 : 1,
+        applied: APPLIED_STATUSES.has(status),
+        blind: false,
+        eval_eligible: false,
+      });
+    }).join('\n');
+
+    return new Response(body, {
+      headers: { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store' },
+    });
+  }
+
   const rows = db.prepare(`
     SELECT title, company, location, source, description,
            ai_suggestion, status, status_source, score, ai_score_adjustment
