@@ -43,12 +43,35 @@ the two can be weighted differently rather than having the distinction
 flattened at export time. `applied_date` is written once, on the first status
 implying an application went out, and never overwritten.
 
-**These train. They never evaluate.** He made every one of them while looking
-at the score, the reviewer's verdict and the badges, so they are not blind; and
-they are not a probability sample of anything, being the top of what the gate
-already surfaced. Scoring a model on them would measure how well it agrees with
-the pipeline that chose what he saw. Every row carries `blind: false` and
+**These train. They never evaluate.** Two reasons, and neither is what
+"leakage" usually means.
+
+*Range restriction.* They are the top of the model's own ranking - the
+candidates page sorts by AI ranking and he applies to what he sees. Restricting
+the sample to that band removes the variance AUC is made of.
+`src/eval-range-restriction.ts` measures it on the labels we have: same model,
+same 480 rows, 0.782 over the full sample and 0.519 over the top 20%. There is
+also no denominator - good roles the gate discarded never reach the UI, so
+recall cannot be computed from this set at all.
+
+*Circularity.* He made every one of them while looking
+at the score, the reviewer's verdict and the badges, which `/api/label`
+deliberately withholds for exactly this reason. Rank high, get seen first, get
+applied to, become a positive label, rank higher - the metric can climb while
+the thing it stands for does not move. Every row carries `blind: false` and
 `eval_eligible: false`; `holdout.py` keeps reading `data/labels.jsonl`.
+
+**Where leakage *is* the right word: adding these to training.** Decisions are
+drawn from the `jobs` table, and 249 of the 489 labelled rows share an exact
+`title|company` with a row in `jobs` (413 share a company, the unit `groups.py`
+folds on). Over half the holdout sits in the pool decisions come from, so
+`personalise.py` must apply the same `key(r) not in held` filter it already
+applies to `train.jsonl`. That guard does not exist yet - the export is built,
+the consumption is not.
+
+Bias in training costs a worse model, which is recoverable and visible the
+moment you evaluate honestly. Bias in evaluation costs the ability to tell.
+That asymmetry is the whole argument for keeping the streams apart.
 
 Unlike the corpus export, this one applies no `ai_suggestion` or description
 length filter. A job he applied to that the reviewer never saw is exactly the
