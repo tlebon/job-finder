@@ -65,6 +65,7 @@ function main(): void {
   const update = db.prepare(
     'UPDATE jobs SET score = ?, categories = ?, requires_relocation = ?, model_score = ? WHERE id = ?'
   );
+  const updateModelOnly = db.prepare('UPDATE jobs SET model_score = ? WHERE id = ?');
   const archive = db.prepare("UPDATE jobs SET status = 'ARCHIVED', updated_at = ? WHERE id = ?");
 
   let changed = 0;
@@ -104,6 +105,11 @@ function main(): void {
     // counted instead. They correct themselves on their next review.
     if (job.ai_reviewed === 1 && job.ai_score_adjustment === null) {
       unreconstructable++;
+      // ...but model_score still gets written. It is computed fresh from the
+      // text and has nothing to do with the adjustment, so skipping it here was
+      // over-broad: it left 1,664 rows permanently unscored to protect a column
+      // this write does not touch.
+      if (confirm) updateModelOnly.run(result.modelScore ?? null, job.id);
       continue;
     }
     const adjustment = job.ai_score_adjustment ?? 0;
@@ -129,8 +135,8 @@ function main(): void {
   const median = deltas.length ? deltas[Math.floor(deltas.length / 2)] : 0;
 
   if (unreconstructable > 0) {
-    console.log(`Skipped ${unreconstructable} jobs reviewed before ai_score_adjustment was recorded`);
-    console.log('  (their score still holds the adjustment; recomputing would strip it)');
+    console.log(`Left score alone on ${unreconstructable} jobs reviewed before ai_score_adjustment was recorded`);
+    console.log('  (their score still holds the adjustment; recomputing would strip it - model_score was written)');
   }
   console.log(`Changed:      ${changed}`);
   console.log(`Unchanged:    ${unchanged}`);
