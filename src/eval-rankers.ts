@@ -5,37 +5,41 @@
  * four-way verdict for the coarse order, the regex score to break ties, and the
  * trained model not at all. Measured on Tim's 480 labels:
  *
- *   regex alone                    AUC 0.676
- *   reviewer verdict alone         AUC 0.689
- *   verdict, regex tie-break       AUC 0.717   top-50 34.4%  top-100 44.4%
- *   verdict, model tie-break       AUC 0.744   top-50 35.6%  top-100 48.9%
- *   verdict + 2x model, blended    AUC 0.793   top-50 34.4%  top-100 48.9%
- *   model alone                    AUC 0.782   top-50 27.8%  top-100 51.1%
+ *   verdict, regex tie-break (was) AUC 0.810   top-50 51.6%  top-100 72.6%
+ *   verdict, model tie-break       AUC 0.837   top-50 53.2%  top-100 72.6%
+ *   model alone                    AUC 0.848   top-50 48.4%  top-100 80.6%
+ *   0.5 x verdict + model logit    AUC 0.857   top-50 54.8%  top-100 83.9%
  *
- * The model ranks better overall and worse at the very top, which is where he
- * looks - so it breaks ties inside the reviewer's verdict rather than replacing
- * it. That beats the old sort on all three numbers. Blending scores higher on
- * AUC and no better at either recall cut-off, so it buys nothing where it counts
- * and costs a z-score in the client.
+ * Neither signal dominates: the verdict ranks better at the very top and the
+ * model over a longer horizon, so adding them beats picking one. The weight
+ * sits on a flat plateau from 0.5 to 0.75, and the fixed form is used rather
+ * than a z-score so a job's position does not depend on which filters are on.
  *
- * Caveat: the first 280 of these labels are the contaminated development set
- * (see ml/holdout.py). Choosing between rankers on them is the thing that set
- * warns about - what makes this one safe enough to act on is that it is not a
- * tuned parameter but a swap of a demonstrably worse signal for a better one,
- * consistent across three metrics.
+ * An earlier run of this script read all 480 labelled rows, which included the
+ * 200-row rejects holdout - the measurement it is supposed to protect. It now
+ * takes the development batch only, via src/labels/batches.json. The numbers
+ * moved because of that and because the model gained structured features.
+ *
+ * Choosing a ranker is a tuning decision, so it runs on the development batch
+ * only. Scoring candidate rankers against the rejects holdout would spend the
+ * one clean measurement in the project on a comparison this size.
  *
  * Usage: npx tsx src/eval-rankers.ts   (needs data/labels.jsonl)
  */
 import { readFileSync } from 'node:fs';
+import { batchOf } from './labels/batches.js';
 import { loadModel, scoreJob } from './model/score.js';
 
 interface Row {
   title: string; text: string; source: string;
   human_label: number | null; regex_score: number; ai_suggestion: string | null;
+  location: string;
+  stratum: string;
 }
 const rows: Row[] = readFileSync('data/labels.jsonl', 'utf8')
   .split('\n').filter(l => l.trim()).map(l => JSON.parse(l))
-  .filter((r: Row) => r.human_label !== null && r.text);
+  .filter((r: Row) => r.human_label !== null && r.text)
+  .filter((r: Row) => batchOf(r.stratum).id === 'source-stratified');
 
 const model = loadModel();
 
@@ -61,7 +65,8 @@ function auc(items: { y: number; s: number }[]): number {
 }
 
 const y = rows.map(r => Number(r.human_label));
-const modelScore = rows.map(r => scoreJob({ title: r.title, description: r.text, source: r.source }, model).logit);
+const modelScore = rows.map(r => scoreJob(
+  { title: r.title, description: r.text, source: r.source, location: r.location }, model).logit);
 const regex = rows.map(r => r.regex_score);
 // Rank key as one number: verdict dominates, regex breaks ties within it.
 const maxRegex = Math.max(...regex) + 1;
@@ -102,3 +107,13 @@ for (const [name, s] of combos) {
 }
 console.log(`  ${'CURRENT (verdict, regex)          '}  AUC ${of(current).toFixed(3)}   top-50 ${(100*recall(current,50)).toFixed(1)}%   top-100 ${(100*recall(current,100)).toFixed(1)}%`);
 console.log(`  ${'model alone                       '}  AUC ${of(modelScore).toFixed(3)}   top-50 ${(100*recall(modelScore,50)).toFixed(1)}%   top-100 ${(100*recall(modelScore,100)).toFixed(1)}%`);
+
+// The z-scored blend ranks best but normalises over whatever is on screen, so a
+// job would move when a filter changes. This is the same shape with fixed
+// weights: verdictRank is a small integer, logit is unbounded, and one constant
+// sets their relative pull. Sweeping it finds where the gain actually sits.
+console.log('\n  fixed blend, a * verdictRank + logit   (no normalisation, stable under filtering)');
+for (const a of [0.25, 0.5, 0.75, 1, 1.5, 2, 3]) {
+  const s = rows.map((_, i) => a * verdictRank[i] + modelScore[i]);
+  console.log(`    a=${String(a).padEnd(5)} AUC ${of(s).toFixed(3)}   top-50 ${(100 * recall(s, 50)).toFixed(1)}%   top-100 ${(100 * recall(s, 100)).toFixed(1)}%`);
+}

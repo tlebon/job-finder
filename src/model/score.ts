@@ -17,6 +17,7 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { extract } from './features.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -31,7 +32,9 @@ interface Model {
   title: Block;
   body: Block;
   sources: string[];
-  offsets: { title: number; body: number; source: number };
+  /** The structured block, standardised at fit time. See src/model/features.ts. */
+  struct: { names: string[]; mean: number[]; scale: number[] };
+  offsets: { title: number; body: number; source: number; struct: number };
   coef: number[];
   intercept: number;
 }
@@ -93,7 +96,7 @@ export interface Scored {
 }
 
 export function scoreJob(
-  job: { title?: string; description?: string; source?: string },
+  job: { title?: string; description?: string; source?: string; location?: string },
   model: Model = loadModel()
 ): Scored {
   let z = model.intercept;
@@ -111,6 +114,16 @@ export function scoreJob(
   // handle_unknown='ignore' at fit time.
   const at = model.sources.indexOf(job.source ?? '');
   if (at >= 0) z += model.coef[model.offsets.source + at];
+
+  // The structured block, standardised with the mean and scale from fit time.
+  // TF-IDF cannot compare 3 years against 10 - both are the token "years" - and
+  // these are worth dev AUC 0.810 -> 0.838 and top-50 recall 43.5% -> 51.6%
+  // (ml/struct_ablation.py).
+  const f = extract(job.title ?? '', job.description ?? '', job.location ?? '');
+  model.struct.names.forEach((name, i) => {
+    const scale = model.struct.scale[i] || 1;
+    z += model.coef[model.offsets.struct + i] * ((f[name] - model.struct.mean[i]) / scale);
+  });
 
   return { probability: 1 / (1 + Math.exp(-z)), logit: z };
 }

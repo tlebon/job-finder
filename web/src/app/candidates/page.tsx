@@ -45,6 +45,15 @@ const AI_SUGGESTION_ORDER: Record<AISuggestion, number> = {
  *  than below an explicit rejection. */
 const UNREVIEWED_ORDER = 2.5;
 
+/** How hard the reviewer's verdict pulls against the model. See rankScore. */
+const VERDICT_WEIGHT = 0.5;
+
+/** model_score is stored as a probability; ranking wants the log-odds. */
+function logit(p: number): number {
+  const clamped = Math.min(Math.max(p, 1e-6), 1 - 1e-6);
+  return Math.log(clamped / (1 - clamped));
+}
+
 export default function CandidatesPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -243,46 +252,49 @@ export default function CandidatesPage() {
    * What an absent model score is worth.
    *
    * 440 of the 1,425 pending jobs predate the column, and ranking them last
-   * would repeat exactly the bug the verdict ordering above had to fix: a job
+   * would repeat exactly the bug the verdict ordering below had to fix: a job
    * nothing has judged is unknown, not bad. The median of what is scored puts
-   * them in the middle of their band instead.
+   * them in the middle instead. Taken over every fetched job rather than the
+   * filtered view, so changing a filter cannot move anything.
    */
-  const medianModelScore = useMemo(() => {
+  const medianLogit = useMemo(() => {
     const scores = jobs
       .map(j => j.modelScore)
       .filter((s): s is number => typeof s === 'number')
       .sort((x, y) => x - y);
-    return scores.length ? scores[Math.floor(scores.length / 2)] : 0;
+    return scores.length ? logit(scores[Math.floor(scores.length / 2)]) : 0;
   }, [jobs]);
+
+  /**
+   * How a candidate is ordered.
+   *
+   * The reviewer's verdict and the trained model both carry signal and neither
+   * dominates: on the 280-row development batch the verdict ranks better at the
+   * very top and the model ranks better over a longer horizon, so adding them
+   * beats picking one. Measured with src/eval-rankers.ts:
+   *
+   *   verdict, regex tie-break (was)   AUC 0.810   top-50 51.6%   top-100 72.6%
+   *   verdict, model tie-break         AUC 0.837   top-50 53.2%   top-100 72.6%
+   *   model alone                      AUC 0.848   top-50 48.4%   top-100 80.6%
+   *   0.5 x verdict + model logit      AUC 0.857   top-50 54.8%   top-100 83.9%
+   *
+   * The weight sits on a flat plateau from 0.5 to 0.75, so it is not a knife
+   * edge fit. Fixed rather than z-scored across the visible set: normalising
+   * would make a job's position depend on which filters are on.
+   *
+   * These are development-set numbers and the weight was chosen by looking at
+   * them, so they are optimistic. The rejects holdout is untouched.
+   */
+  const rankScore = useCallback((job: Job) => {
+    const verdict = job.aiSuggestion ? AI_SUGGESTION_ORDER[job.aiSuggestion] : UNREVIEWED_ORDER;
+    const model = typeof job.modelScore === 'number' ? logit(job.modelScore) : medianLogit;
+    return -VERDICT_WEIGHT * verdict + model;
+  }, [medianLogit]);
 
   const sortedJobs = [...visibleJobs].sort((a, b) => {
     switch (sortBy) {
-      case 'ai': {
-        // Sort by AI suggestion first (Strong > Good > Maybe > Auto-dismiss > Not reviewed)
-        // Then by the trained model within each category.
-        // Unreviewed sorts as neutral, not as worse than a rejection. Sending
-        // it to 99 buried every job from a source whose review had not run yet:
-        // all 295 ATS and 80,000 Hours jobs ranked below AUTO_DISMISS, putting
-        // the highest-scoring job in the database at rank 1589.
-        //
-        // The tie-break used to be the regex score, which is the weakest of the
-        // three signals available. On Tim's 480 labels (src/eval-rankers.ts):
-        //
-        //   regex alone                    AUC 0.676
-        //   reviewer verdict alone         AUC 0.689
-        //   verdict, regex tie-break       AUC 0.717   top-50 34.4%  top-100 44.4%
-        //   verdict, model tie-break       AUC 0.744   top-50 35.6%  top-100 48.9%
-        //   model alone                    AUC 0.782   top-50 27.8%  top-100 51.1%
-        //
-        // The model is the better ranker overall but worse at the very top,
-        // where he actually looks - so the reviewer keeps the coarse call and
-        // the model only breaks ties inside it. That beats the old sort on all
-        // three numbers rather than trading one against another.
-        const aOrder = a.aiSuggestion ? AI_SUGGESTION_ORDER[a.aiSuggestion] : UNREVIEWED_ORDER;
-        const bOrder = b.aiSuggestion ? AI_SUGGESTION_ORDER[b.aiSuggestion] : UNREVIEWED_ORDER;
-        if (aOrder !== bOrder) return aOrder - bOrder;
-        return (b.modelScore ?? medianModelScore) - (a.modelScore ?? medianModelScore);
-      }
+      case 'ai':
+        return rankScore(b) - rankScore(a);
       case 'score':
         return b.score - a.score;
       case 'date':

@@ -17,14 +17,17 @@ import { scoreJob, tokenize } from './score.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = JSON.parse(readFileSync(join(here, 'fixture.json'), 'utf8')) as {
-  title: string; text: string; source: string; score: number;
+  title: string; text: string; source: string; location: string;
+  score: number; features: number[];
 }[];
 
 test('scores match scikit-learn to 1e-6 across the fixture', () => {
   let worst = 0;
   let worstRow = '';
   for (const row of fixture) {
-    const got = scoreJob({ title: row.title, description: row.text, source: row.source });
+    const got = scoreJob({
+      title: row.title, description: row.text, source: row.source, location: row.location,
+    });
     const diff = Math.abs(got.probability - row.score);
     if (diff > worst) { worst = diff; worstRow = row.title; }
   }

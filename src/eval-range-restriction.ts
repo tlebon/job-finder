@@ -16,21 +16,30 @@
  * flip. This is the same mistake as the earlier "score does not rank" claim,
  * which came from a sample drawn highest-score-first.
  *
+ * Restricted to the development batch, for the same reason every other tuning
+ * question is: the rejects holdout is measured once, at the end.
+ *
  * Usage: npx tsx src/eval-range-restriction.ts   (needs data/labels.jsonl)
  */
 import { readFileSync } from 'node:fs';
+import { batchOf } from './labels/batches.js';
 import { loadModel, scoreJob } from './model/score.js';
 
-interface Row { title: string; text: string; source: string; human_label: number | null }
+interface Row {
+  title: string; text: string; source: string; location: string;
+  stratum: string; human_label: number | null;
+}
 
 const rows: Row[] = readFileSync('data/labels.jsonl', 'utf8')
   .split('\n').filter(l => l.trim()).map(l => JSON.parse(l))
-  .filter((r: Row) => r.human_label !== null && r.text);
+  .filter((r: Row) => r.human_label !== null && r.text)
+  .filter((r: Row) => batchOf(r.stratum).id === 'source-stratified');
 
 const model = loadModel();
 const scored = rows.map(r => ({
   y: Number(r.human_label),
-  s: scoreJob({ title: r.title, description: r.text, source: r.source }, model).logit,
+  s: scoreJob({ title: r.title, description: r.text, source: r.source, location: r.location },
+    model).logit,
 }));
 
 /** Rank-based AUC, ties averaged. */

@@ -317,7 +317,11 @@ export function filterJob(job: RawJob): FilterResult {
   // Scored for every job that clears the exclusions, whether or not the regex
   // rules would keep it - so the value is available for ranking and for
   // measuring the two against each other later.
-  const model = scoreJob({ title, description, source: (job as RawJob).source });
+  // location included: the model has loc_* tier features, and omitting it here
+  // would score production differently from the path fixture.json pins.
+  const model = scoreJob({
+    title, description, source: (job as RawJob).source, location: job.location,
+  });
 
   const titleAndLocation = titleMatches.length > 0 && locationKnown;
 

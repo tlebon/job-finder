@@ -146,7 +146,9 @@ if (fromRejects) {
 
   const strata = new Map<string, typeof worth>();
   for (const r of worth) {
-    const p = scoreJob({ title: r.title, description: r.description, source: r.source }).probability;
+    const p = scoreJob({
+      title: r.title, description: r.description, source: r.source, location: r.location,
+    }).probability;
     const key = band(p);
     if (!strata.has(key)) strata.set(key, []);
     strata.get(key)!.push(r);
